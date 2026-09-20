@@ -216,6 +216,7 @@ impl App {
                 mode: web_mode,
                 ..WebConfig::default()
             },
+            true,
             stop_rx,
         )
         .await?;

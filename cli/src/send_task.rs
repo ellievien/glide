@@ -204,6 +204,9 @@ async fn send_inner(
                 &response.session_id,
                 file_id,
                 token,
+                // The CLI is a one-shot process with no persisted transfer
+                // state to resume from, so it always uploads from scratch.
+                0,
                 body,
                 cancel.token.clone(),
             )

@@ -38,15 +38,15 @@ jobs:
         run: rustup toolchain install # version from rust-toolchain.toml
 
       - name: Compile CLI
-        run: cargo build --release --package localsend-cli
+        run: cargo build --release --package glide-cli
 
       # tar preserves the executable bit, which a bare artifact upload would lose
       - name: Create tar.gz archive
-        run: tar -czvf LocalSend-CLI-${{ needs.build.outputs.version }}-${{ matrix.suffix }}.tar.gz -C target/release localsend-cli
+        run: tar -czvf Glide-CLI-${{ needs.build.outputs.version }}-${{ matrix.suffix }}.tar.gz -C target/release glide-cli
 
       - name: Upload CLI
         uses: actions/upload-artifact@v6
         with:
           name: cli-${{ matrix.suffix }}-result
-          path: LocalSend-CLI-${{ needs.build.outputs.version }}-${{ matrix.suffix }}.tar.gz
+          path: Glide-CLI-${{ needs.build.outputs.version }}-${{ matrix.suffix }}.tar.gz
           if-no-files-found: error

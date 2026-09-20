@@ -1,51 +1,28 @@
-# Contributing to LocalSend
+# Contributing to Glide
 
-LocalSend is an open-source project, and we welcome contributions from anyone who is interested in helping improve the app. Whether you're a developer, a translator, or a documentation writer, there are many ways to get involved.
-
-LocalSend disallows AI generated contributions unless:
-
-- they are bug fixes or
-- very small or
-- you prove your expertise in your field
+Glide is a closed fork of [LocalSend](https://github.com/localsend/localsend), developed by
+Neverheard Studio. This document covers day-to-day dev setup; see [NOTICE](NOTICE) for attribution
+details and [AGENTS.md](AGENTS.md) for the full repository guide (layout, commands, architecture).
 
 ## Getting Started
 
-If you're interested in contributing code to LocalSend, you'll need to follow these steps:
+If you're interested in contributing code to Glide, you'll need to follow these steps:
 
 ## Run
 
-After you have installed [Flutter](https://flutter.dev), then you can start this app by typing the following commands:
+Install [fvm](https://fvm.app) and use it to install the Flutter version pinned in [.fvmrc](.fvmrc),
+then start the app by typing the following commands:
 
 ```shell
 cd app
-flutter pub get
-dart run build_runner build -d
-flutter run
+fvm flutter pub get
+fvm dart run build_runner build -d
+fvm flutter run
 ```
-
-## Translation
-
-You can help in translating this app to other languages!
-
-1. Fork this repository
-2. Choose one
-   - Add missing translations in existing languages: Only update `_missing_translations_<locale>.json` in [assets/i18n](https://github.com/localsend/localsend/tree/main/app/assets/i18n)
-   - Fix existing translations: Update `strings_<locale>.i18n.json` in [assets/i18n](https://github.com/localsend/localsend/tree/main/app/assets/i18n)
-   - Add new languages: Create a new file, see also: [locale codes](https://saimana.com/list-of-country-locale-code/).
-3. Optional: Re-run this app
-   1. Run `cd app` to enter the app directory.
-   2. Make sure you have [run](#run) this app once.
-   3. Update translations via `flutter pub run slang`
-   4. Run the app via `flutter run`
-4. Open a pull request
-
-**_Take note:_ Fields decorated with `@` are not meant to be translated, they are not used in the app in any way, being merely informative text about the file or to give context to the translator.**
-
-Thanks to all [translators](https://github.com/localsend/localsend/tree/main/app/lib/pages/about/translators.dart)!
 
 ## Contributing Guidelines
 
-Before you submit a pull request to LocalSend, please ensure that you have followed these guidelines:
+Before you submit a pull request, please ensure that you have followed these guidelines:
 
 - Code should be well-documented and formatted according to the [Dart Style Guide](https://dart.dev/guides/language/effective-dart/style).
 - All changes should be covered by tests.
@@ -54,89 +31,16 @@ Before you submit a pull request to LocalSend, please ensure that you have follo
 
 ## Bug Reports and Feature Requests
 
-If you encounter a bug in LocalSend or have a feature request, please submit an issue to the [issue tracker](https://github.com/localsend/localsend/issues). Please be sure to provide a clear description of the problem or feature request, along with any relevant context or steps to reproduce the issue.
+If you encounter a bug or have a feature request, please submit an issue to this repository's issue
+tracker. Please be sure to provide a clear description of the problem or feature request, along
+with any relevant context or steps to reproduce the issue.
 
 ## Security Issues
 
-If you discover a security issue in LocalSend, please do not submit an issue to the public issue tracker. Instead, please email us directly at [support@localsend.org](mailto:support@localsend.org) so that we can address the issue as quickly and effectively as possible.
-
-## Distribution
-
-Git based distribution:
-
-| Channel        | Repository          | Maintainer                                         |
-|----------------|---------------------|----------------------------------------------------|
-| [Winget][]     | [Winget Repo][]     | [@sitiom][], [@Tienisto], Github Actions           |
-| [Scoop][]      | [Scoop Repo][]      | [@sitiom][], [@Tienisto], Github Actions           |
-| [Chocolatey][] | [Chocolatey Repo][] | [@brogers5][]                                      |
-| [Homebrew][]   | [Homebrew Repo][]   | [@Tienisto][], Github Actions                      |
-| [Flathub][]    | [Flathub Repo][]    | [@proletarius101][], [@Tienisto][], Github Actions |
-| [AUR][]        | [AUR Repo][]        | [@Nixuge][]                                        |
-| [Nixpkgs][]    | [Nixpkgs Repo][]    | [@sikmir][], [@linsui][]                           |
-| [F-Droid][]    | [F-Droid Repo][]    | [@linsui][], [@Tienisto][], [F-Droid CI][]         |
-| [Snap][]       | [Snap Repo][]       | [@thatLeaflet][]                                   |
-
-[winget]: https://github.com/microsoft/winget-pkgs/tree/master/manifests/l/LocalSend/LocalSend
-[winget repo]: https://github.com/microsoft/winget-pkgs/tree/master/manifests/l/LocalSend/LocalSend
-[scoop]: https://scoop.sh/#/apps?s=0&d=1&o=true&q=localsend&id=fb88113be361ca32c0dcac423cb4afdeda0b0c66
-[scoop repo]: https://github.com/ScoopInstaller/Extras/blob/master/bucket/localsend.json
-[chocolatey]: https://community.chocolatey.org/packages/localsend
-[chocolatey repo]: https://github.com/brogers5/chocolatey-package-localsend/tree/main
-[homebrew]: https://formulae.brew.sh/cask/localsend
-[homebrew repo]: https://github.com/Homebrew/homebrew-cask/blob/master/Casks/l/localsend.rb
-[flathub]: https://flathub.org/apps/details/org.localsend.localsend_app
-[flathub repo]: https://github.com/flathub/org.localsend.localsend_app
-[aur]: https://aur.archlinux.org/packages/localsend-bin
-[aur repo]: https://aur.archlinux.org/localsend-bin.git
-[nixpkgs]: https://search.nixos.org/packages?show=localsend
-[nixpkgs repo]: https://github.com/NixOS/nixpkgs/blob/master/pkgs/applications/networking/localsend/default.nix
-[f-droid]: https://f-droid.org/packages/org.localsend.localsend_app
-[f-droid repo]: https://gitlab.com/fdroid/fdroiddata/-/blob/master/metadata/org.localsend.localsend_app.yml
-[snap]: https://snapcraft.io/localsend
-[snap repo]: https://github.com/localsend/snap
-
-Manual distribution:
-
-| Channel        | Maintainer                               |
-|----------------|------------------------------------------|
-| [App Store][]  | [@Tienisto](https://github.com/Tienisto) |
-| [Play Store][] | [@Tienisto](https://github.com/Tienisto) |
-| [Amazon][]     | [@Tienisto](https://github.com/Tienisto) |
-
-[app store]: https://apps.apple.com/us/app/localsend/id1661733229
-[play store]: https://play.google.com/store/apps/details?id=org.localsend.localsend_app
-[amazon]: https://www.amazon.com/dp/B0BW6MP732
-
-Binary distribution:
-
-| Type        | Maintainer    | Credits                      |
-|-------------|---------------|------------------------------|
-| Windows ZIP | [@Tienisto][] |                              |
-| MSIX        | [@Tienisto][] |                              |
-| EXE         | [@Tienisto][] |                              |
-| APK         | [@Tienisto][] |                              |
-| TAR         | [@Tienisto][] |                              |
-| DEB         | [@Tienisto][] |                              |
-| AppImage    | [@Tienisto][] | [@TheGB0077][]               |
-| DMG         | [@Tienisto][] |                              |
-
-[@Tienisto]: https://github.com/Tienisto
-[@TheGB0077]: https://github.com/TheGB0077
-[@sitiom]: https://github.com/sitiom
-[@Nixuge]: https://github.com/Nixuge
-[@proletarius101]: https://github.com/proletarius101
-[@brogers5]: https://github.com/brogers5
-[@sikmir]: https://github.com/sikmir
-[@linsui]: https://github.com/linsui
-[@thatLeaflet]: https://github.com/thatLeaflet
-[F-Droid CI]: https://gitlab.com/fdroidci
-
-TODO:
-
-You can help in publishing LocalSend on more platforms. Please create an issue to notify us!
-
-- Traditional Linux distributions (Debian, Fedora, etc.)
-- (Your idea here)
+If you discover a security issue in Glide, please do not submit an issue to the public issue
+tracker. Instead, please email us directly at
+<!-- TODO(Neverheard Studio): replace with a real security contact address --> [hello@neverheard.studio](mailto:hello@neverheard.studio)
+so that we can address the issue as quickly and effectively as possible.
 
 ## Notes
 
@@ -201,6 +105,6 @@ flutter doctor
 
 Next, follow the instructions to set up the GitHub runner.
 
-Start the "Release Draft" workflow from the "Actions" tab: https://github.com/localsend/localsend/actions/workflows/release.yml
+Start the "Release Draft" workflow from this repository's Actions tab.
 
 Finally, compile binaries not yet supported by the pipeline.

@@ -31,9 +31,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Remove proprietary dependencies
-        run: sh support/scripts/remove_proprietary_dependencies.sh
-
       - name: Copy files to env.APK_BUILD_DIR
         run: |
           mkdir -p $APK_BUILD_DIR

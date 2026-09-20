@@ -128,6 +128,7 @@ async fn start_network(identity: &Arc<storage::Identity>) -> anyhow::Result<Netw
             event_tx: server_tx.clone(),
         }),
         WebConfig::default(),
+        true,
         server_stop_rx,
     )
     .await?;

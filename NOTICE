@@ -1,0 +1,26 @@
+Glide
+Copyright 2026 Neverheard Studio
+
+This product is a derivative work of LocalSend
+(https://github.com/localsend/localsend), Copyright 2022-2026 Tien Do Nam
+and the LocalSend contributors, licensed under the Apache License,
+Version 2.0. A copy of that license is included in this distribution as
+LICENSE.
+
+Glide is an independent project and is not affiliated with, endorsed by,
+or sponsored by LocalSend or its maintainers. The "Glide" name, tagline
+and logo are original to Neverheard Studio; no LocalSend trademark
+rights are claimed over them.
+
+Substantial portions of this codebase have been modified or added since
+the fork: a new UI and navigation, rebranding of all user-facing
+strings, colors, icons and platform bundle identifiers, and changes to
+device visibility and history behavior. Files that were changed carry
+no per-file "modified" banner in every case; the authoritative record
+of what changed is the git history of this repository relative to its
+upstream LocalSend origin (https://github.com/localsend/localsend),
+consistent with Apache License 2.0 Section 4(b).
+
+Third-party dependency licenses are listed in-app under
+Settings > About > Open-source licenses, generated from each
+dependency's own license metadata at build time.
