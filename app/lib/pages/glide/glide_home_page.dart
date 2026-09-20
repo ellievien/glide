@@ -55,15 +55,66 @@ class GlideHomePage extends StatefulWidget {
 class _GlideHomePageState extends State<GlideHomePage> with Refena {
   bool _dragIndicator = false;
 
+  /// How often discovery is re-run while nothing has been found yet.
+  static const _rescanInterval = Duration(seconds: 5);
+
+  /// Once devices are known, re-scan no more often than this.
+  static const _idleRescanInterval = Duration(seconds: 20);
+
+  Timer? _rescanTimer;
+  AppLifecycleListener? _lifecycleListener;
+  DateTime? _lastScan;
+  bool _scanning = false;
+  bool _ready = false;
+
   @override
   void initState() {
     super.initState();
+    _lifecycleListener = AppLifecycleListener(onResume: () => unawaited(_rescan()));
     ensureRef((ref) async {
       await postInit(context, ref, widget.appStart);
-      if (ref.read(nearbyDevicesProvider).devices.isEmpty) {
-        await ref.global.dispatchAsync(StartSmartScan());
-      }
+      _ready = true;
+      await _rescan();
+      _rescanTimer = Timer.periodic(_rescanInterval, (_) => unawaited(_rescan()));
     });
+  }
+
+  /// Re-runs discovery on a timer and whenever the app returns to the
+  /// foreground, rather than once when the page opens.
+  ///
+  /// Multicast is the only mechanism that pushes a late-joining device into an
+  /// already-open list, and it is unavailable on iOS (see [StartSmartScan]).
+  /// Without repeating the http scan, a device that comes online after the
+  /// first scan stays invisible until the page is reopened -- which reads to
+  /// the user as "the two devices cannot see each other".
+  Future<void> _rescan() async {
+    if (!_ready || _scanning || !mounted) {
+      return;
+    }
+
+    // Scanning every few seconds is only worth it while the radar is empty.
+    final lastScan = _lastScan;
+    if (lastScan != null && ref.read(nearbyDevicesProvider).allDevices.isNotEmpty && DateTime.now().difference(lastScan) < _idleRescanInterval) {
+      return;
+    }
+
+    _scanning = true;
+    _lastScan = DateTime.now();
+    try {
+      await ref.global.dispatchAsync(StartSmartScan());
+    } catch (e) {
+      // A scan that fails (no interface up yet, permission not granted) must
+      // not prevent the following ones from running.
+    } finally {
+      _scanning = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _rescanTimer?.cancel();
+    _lifecycleListener?.dispose();
+    super.dispose();
   }
 
   Future<void> _onDeviceTap(Device device) async {
@@ -112,10 +163,36 @@ class _GlideHomePageState extends State<GlideHomePage> with Refena {
       headline = t.glide.home.headline;
       subtext = Padding(
         padding: const EdgeInsets.only(top: 8),
-        child: Text(
-          t.glide.home.emptySubtext,
-          style: GT.secondary,
-          textAlign: TextAlign.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              t.glide.home.emptySubtext,
+              style: GT.secondary,
+              textAlign: TextAlign.center,
+            ),
+            // On iOS every connection to a local address is gated behind the
+            // "Local Network" permission and the system only ever asks once.
+            // If that prompt was dismissed, discovery silently finds nothing
+            // and there is no in-app way back, so offer the route to Settings.
+            if (Platform.isIOS)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: GestureDetector(
+                  onTap: () async {
+                    try {
+                      await openAppSettings();
+                    } catch (_) {
+                      // Nothing to open on this platform.
+                    }
+                  },
+                  child: Text(
+                    t.glide.home.openSystemSettings,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: GT.blue),
+                  ),
+                ),
+              ),
+          ],
         ),
       );
     } else {
