@@ -24,6 +24,12 @@ class SyncState with SyncStateMappable {
   final bool serverRunning;
   final bool download;
 
+  /// Whether this device may be discovered by others: it announces itself,
+  /// answers other devices' announcements, and answers direct register
+  /// requests. `false` when Settings > Visibility is "Hidden". Sending to
+  /// other devices is unaffected either way.
+  final bool discoverable;
+
   SyncState({
     required this.rootIsolateToken,
     required this.securityContext,
@@ -37,11 +43,12 @@ class SyncState with SyncStateMappable {
     required this.discoveryTimeout,
     required this.serverRunning,
     required this.download,
+    required this.discoverable,
   });
 
   @override
   String toString() {
-    return 'SyncState(securityContext: <SecurityContext>, deviceInfo: $deviceInfo, alias: $alias, port: $port, networkWhitelist: $networkWhitelist, networkBlacklist: $networkBlacklist, protocol: $protocol, multicastGroup: $multicastGroup, discoveryTimeout: $discoveryTimeout, serverRunning: $serverRunning, download: $download)';
+    return 'SyncState(securityContext: <SecurityContext>, deviceInfo: $deviceInfo, alias: $alias, port: $port, networkWhitelist: $networkWhitelist, networkBlacklist: $networkBlacklist, protocol: $protocol, multicastGroup: $multicastGroup, discoveryTimeout: $discoveryTimeout, serverRunning: $serverRunning, download: $download, discoverable: $discoverable)';
   }
 }
 

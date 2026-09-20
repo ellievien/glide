@@ -77,6 +77,11 @@ class SyncStateMapper extends ClassMapperBase<SyncState> {
     'download',
     _$download,
   );
+  static bool _$discoverable(SyncState v) => v.discoverable;
+  static const Field<SyncState, bool> _f$discoverable = Field(
+    'discoverable',
+    _$discoverable,
+  );
 
   @override
   final MappableFields<SyncState> fields = const {
@@ -92,6 +97,7 @@ class SyncStateMapper extends ClassMapperBase<SyncState> {
     #discoveryTimeout: _f$discoveryTimeout,
     #serverRunning: _f$serverRunning,
     #download: _f$download,
+    #discoverable: _f$discoverable,
   };
 
   static SyncState _instantiate(DecodingData data) {
@@ -108,6 +114,7 @@ class SyncStateMapper extends ClassMapperBase<SyncState> {
       discoveryTimeout: data.dec(_f$discoveryTimeout),
       serverRunning: data.dec(_f$serverRunning),
       download: data.dec(_f$download),
+      discoverable: data.dec(_f$discoverable),
     );
   }
 
@@ -193,6 +200,7 @@ abstract class SyncStateCopyWith<$R, $In extends SyncState, $Out>
     int? discoveryTimeout,
     bool? serverRunning,
     bool? download,
+    bool? discoverable,
   });
   SyncStateCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -245,6 +253,7 @@ class _SyncStateCopyWithImpl<$R, $Out>
     int? discoveryTimeout,
     bool? serverRunning,
     bool? download,
+    bool? discoverable,
   }) => $apply(
     FieldCopyWithData({
       if (rootIsolateToken != null) #rootIsolateToken: rootIsolateToken,
@@ -259,6 +268,7 @@ class _SyncStateCopyWithImpl<$R, $Out>
       if (discoveryTimeout != null) #discoveryTimeout: discoveryTimeout,
       if (serverRunning != null) #serverRunning: serverRunning,
       if (download != null) #download: download,
+      if (discoverable != null) #discoverable: discoverable,
     }),
   );
   @override
@@ -275,6 +285,7 @@ class _SyncStateCopyWithImpl<$R, $Out>
     discoveryTimeout: data.get(#discoveryTimeout, or: $value.discoveryTimeout),
     serverRunning: data.get(#serverRunning, or: $value.serverRunning),
     download: data.get(#download, or: $value.download),
+    discoverable: data.get(#discoverable, or: $value.discoverable),
   );
 
   @override

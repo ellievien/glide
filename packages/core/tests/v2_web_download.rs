@@ -145,6 +145,7 @@ async fn start_test_server(
             event_tx: v2_event_tx,
         }),
         web_config,
+        true,
         stop_rx,
     )
     .await
@@ -318,6 +319,7 @@ async fn test_upload_page() {
             mode: WebMode::Upload,
             ..WebConfig::default()
         },
+        true,
         stop_rx,
     )
     .await
@@ -378,6 +380,7 @@ async fn test_custom_web_pages() {
             },
             ..WebConfig::default()
         },
+        true,
         stop_rx,
     )
     .await

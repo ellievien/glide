@@ -17,7 +17,7 @@ use crate::model::discovery::PROTOCOL_VERSION_V2;
 use crate::model::transfer::FileDto;
 use hyper::body::Incoming;
 use hyper::{Request, Response, StatusCode};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
@@ -133,9 +133,13 @@ pub enum ServerEventV2 {
 /// The application's decision for a prepare-upload request.
 #[derive(Debug)]
 pub enum PrepareUploadDecisionV2 {
-    /// Accept the given file IDs (a subset of the offered files).
-    /// An empty set responds with 204 (no file transfer needed).
-    Accept(HashSet<String>),
+    /// Accept the given file IDs (a subset of the offered files), each
+    /// mapped to a resume offer: 0 for a normal file (nothing to resume), or
+    /// the number of bytes the application already has on disk for that
+    /// file's content from a previous interrupted attempt, offered to the
+    /// sender via `PrepareUploadResponseDtoV2::resume_offsets`.
+    /// An empty map responds with 204 (no file transfer needed).
+    Accept(HashMap<String, u64>),
 
     /// Decline the request (403).
     Decline,
@@ -156,6 +160,13 @@ pub(crate) async fn register(
     state: AppState,
     client_info: RequestClientInfo,
 ) -> Result<JsonResponse<RegisterResponseDtoV2>, AppError> {
+    // Hidden devices answer as if this endpoint did not exist: a peer that
+    // already knows this device's address (a favorite, or a subnet scan)
+    // must not be able to register with it either.
+    if !state.discoverable.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err(AppError::Status(StatusCode::NOT_FOUND));
+    }
+
     let payload = body.collect_to_json::<RegisterDtoV2>().await?;
 
     // On TLS, only trust registrations whose claimed fingerprint is proven
@@ -298,7 +309,7 @@ pub(crate) async fn prepare_upload(
         }
     };
 
-    let accepted_ids = match decision {
+    let accepted = match decision {
         PrepareUploadDecisionV2::Decline => {
             pending_guard.clear().await;
             return Err(AppError::Message(
@@ -306,13 +317,13 @@ pub(crate) async fn prepare_upload(
                 "Rejected".to_string(),
             ));
         }
-        PrepareUploadDecisionV2::Accept(ids) => ids,
+        PrepareUploadDecisionV2::Accept(offers) => offers,
     };
 
     let files: HashMap<String, SessionFileV2> = payload
         .files
         .into_iter()
-        .filter(|(id, _)| accepted_ids.contains(id))
+        .filter(|(id, _)| accepted.contains_key(id))
         .map(|(id, dto)| {
             let file = SessionFileV2 {
                 dto,
@@ -336,6 +347,10 @@ pub(crate) async fn prepare_upload(
         .iter()
         .map(|(id, file)| (id.clone(), file.token.clone()))
         .collect();
+    let resume_offsets: HashMap<String, u64> = accepted
+        .into_iter()
+        .filter(|(id, offset)| *offset > 0 && files.contains_key(id))
+        .collect();
 
     {
         let mut slot = v2.session.lock().await;
@@ -354,6 +369,7 @@ pub(crate) async fn prepare_upload(
         body: PrepareUploadResponseDtoV2 {
             session_id,
             files: tokens,
+            resume_offsets,
         },
     }
     .into_response())
@@ -377,6 +393,17 @@ pub(crate) async fn upload(
             "Missing parameters".to_string(),
         ));
     };
+
+    // GLIDE extension (backward compatible: absent for stock LocalSend
+    // senders, defaulting to 0, i.e. today's always-from-scratch behavior).
+    // The sender claims to already have delivered this many bytes of the
+    // file in a previous attempt and sends only the remainder; the receiver
+    // verifies the claim against its own disk before trusting it
+    // (see `save::save_req_to_target`).
+    let resume_offset: u64 = query
+        .get("offset")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
 
     // Validate the request and mark the file as in progress.
     let file_dto = {
@@ -437,6 +464,7 @@ pub(crate) async fn upload(
         file_size,
         expected_sha256.as_deref(),
         timestamps,
+        resume_offset,
     )
     .await;
 
@@ -641,15 +669,18 @@ impl Drop for UploadGuard {
 }
 
 /// How often an upload of the same file may be started, i.e. how often a
-/// sender may retry a file after a checksum mismatch.
+/// sender may retry a file after a checksum mismatch or a dropped connection.
 /// Senders must not retry more often than this (see the upload isolate).
 const MAX_UPLOAD_ATTEMPTS: u8 = 3;
 
 /// Sets the final status of a file and ends the session once all files are done.
 ///
-/// A checksum mismatch resets the file to [FileStatusV2::Pending] (as long as
-/// [MAX_UPLOAD_ATTEMPTS] is not exhausted) so the sender can retry the upload
-/// with the same token; the session stays active in that case.
+/// A checksum mismatch or a failed/dropped upload (e.g. a network
+/// interruption) resets the file to [FileStatusV2::Pending] (as long as
+/// [MAX_UPLOAD_ATTEMPTS] is not exhausted) so the sender can retry the
+/// upload with the same token — optionally resuming from where the dropped
+/// attempt left off (see `resume_offset` in `upload`) — and the session
+/// stays active in that case.
 async fn finalize_file(v2: &V2State, session_id: &str, file_id: &str, result: SaveResult) {
     let session_ended = {
         let mut slot = v2.session.lock().await;
@@ -663,7 +694,9 @@ async fn finalize_file(v2: &V2State, session_id: &str, file_id: &str, result: Sa
             if file.status == FileStatusV2::InProgress {
                 file.status = match result {
                     SaveResult::Success => FileStatusV2::Finished,
-                    SaveResult::HashMismatch if file.attempts < MAX_UPLOAD_ATTEMPTS => {
+                    SaveResult::HashMismatch | SaveResult::Failed
+                        if file.attempts < MAX_UPLOAD_ATTEMPTS =>
+                    {
                         FileStatusV2::Pending
                     }
                     SaveResult::Failed | SaveResult::HashMismatch => FileStatusV2::Failed,

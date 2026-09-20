@@ -127,6 +127,10 @@ impl LsHttpClient {
         }
     }
 
+    /// `resume_offset` is nonzero when `content` has already been advanced
+    /// past that many bytes and the caller is resuming a previous, partially
+    /// delivered attempt at this file — see [`LsHttpClientV2::upload`].
+    #[allow(clippy::too_many_arguments)]
     pub async fn upload(
         &self,
         protocol: model::discovery::ProtocolType,
@@ -136,23 +140,42 @@ impl LsHttpClient {
         session_id: &str,
         file_id: &str,
         token: &str,
+        resume_offset: u64,
         content: model::transfer::FileContent,
         progress: impl Fn(u64) + Send + 'static,
         cancel: tokio_util::sync::CancellationToken,
     ) -> Result<(), ClientError> {
-        let body = upload_body(content, progress);
+        let body = upload_body(content, resume_offset, progress);
         match self {
             LsHttpClient::V2(client) => {
                 client
                     .upload(
-                        protocol, ip, port, public_key, session_id, file_id, token, body, cancel,
+                        protocol,
+                        ip,
+                        port,
+                        public_key,
+                        session_id,
+                        file_id,
+                        token,
+                        resume_offset,
+                        body,
+                        cancel,
                     )
                     .await
             }
             LsHttpClient::V3(client) => {
                 client
                     .upload(
-                        protocol, ip, port, public_key, session_id, file_id, token, body, cancel,
+                        protocol,
+                        ip,
+                        port,
+                        public_key,
+                        session_id,
+                        file_id,
+                        token,
+                        resume_offset,
+                        body,
+                        cancel,
                     )
                     .await
             }
@@ -174,13 +197,16 @@ impl LsHttpClient {
 }
 
 /// Builds a streaming request body from the file content, invoking `progress`
-/// with the cumulative number of bytes read as each chunk is sent.
+/// with the cumulative number of bytes read as each chunk is sent, counted
+/// from `resume_offset` so the figure reflects the whole file even when only
+/// its tail is actually being streamed here.
 pub(super) fn upload_body(
     content: model::transfer::FileContent,
+    resume_offset: u64,
     progress: impl Fn(u64) + Send + 'static,
 ) -> reqwest::Body {
-    let mut sent = 0_u64;
-    let stream = ReceiverStream::new(content.into_receiver()).map(move |chunk| {
+    let mut sent = resume_offset;
+    let stream = ReceiverStream::new(content.into_receiver_from(resume_offset)).map(move |chunk| {
         sent += chunk.len() as u64;
         progress(sent);
         Ok::<Bytes, anyhow::Error>(chunk)

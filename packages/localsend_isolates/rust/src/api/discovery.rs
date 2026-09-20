@@ -319,6 +319,17 @@ impl RsDiscovery {
         self.instance.handle.set_answer_announcements(answer);
     }
 
+    /// Sets whether this device announces itself to the network. On by
+    /// default.
+    ///
+    /// Turned off when device visibility is "Hidden": [RsDiscovery::announce]
+    /// (including the one implied by [RsDiscovery::discover_staged]) then
+    /// becomes a no-op, so this device sends no announcement, while it can
+    /// still discover and send to others.
+    pub fn set_announcing(&self, announcing: bool) {
+        self.instance.handle.set_announcing(announcing);
+    }
+
     /// Discovers devices in stages, cheapest first: announces this device to
     /// the network and probes [channels] (e.g. the favorites), then falls
     /// back to scanning the `/24` subnets of the local interface addresses

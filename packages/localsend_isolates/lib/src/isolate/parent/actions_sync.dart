@@ -83,6 +83,7 @@ class IsolateSyncServerStateAction extends ReduxAction<IsolateController, Parent
   final ProtocolType protocol;
   final bool serverRunning;
   final bool download;
+  final bool discoverable;
 
   IsolateSyncServerStateAction({
     required this.alias,
@@ -90,6 +91,7 @@ class IsolateSyncServerStateAction extends ReduxAction<IsolateController, Parent
     required this.protocol,
     required this.serverRunning,
     required this.download,
+    required this.discoverable,
   });
 
   @override
@@ -102,6 +104,7 @@ class IsolateSyncServerStateAction extends ReduxAction<IsolateController, Parent
           protocol: protocol,
           serverRunning: serverRunning,
           download: download,
+          discoverable: discoverable,
         ),
       ),
     );

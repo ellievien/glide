@@ -38,6 +38,7 @@ Future<RsHttpServer> startServer({
   required bool verifyChecksums,
   required WebParams web,
   String? showToken,
+  required bool discoverable,
 }) => RustLib.instance.api.crateApiServerStartServer(
   port: port,
   tls: tls,
@@ -50,6 +51,7 @@ Future<RsHttpServer> startServer({
   verifyChecksums: verifyChecksums,
   web: web,
   showToken: showToken,
+  discoverable: discoverable,
 );
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RsHttpServer>>
@@ -114,9 +116,18 @@ abstract class RsHttpServer implements RustOpaqueInterface {
 
   /// Answers the pending [RsServerEvent::PrepareUpload] event.
   ///
-  /// Passing the accepted file IDs (a subset of the offered files) accepts the request.
-  /// Passing `None` declines the request.
-  Future<void> respondPrepareUpload({List<String>? acceptedFileIds});
+  /// Passing the accepted files (a subset of the offered files, each
+  /// mapped to a resume offer -- 0 for a normal file, or the number of
+  /// bytes already on disk for that file's content from a previous
+  /// interrupted attempt) accepts the request. Passing `None` declines it.
+  Future<void> respondPrepareUpload({Map<String, BigInt>? acceptedFiles});
+
+  /// Sets whether `/register` answers with this device's info. On by
+  /// default; the app turns it off when device visibility is "Hidden",
+  /// so this device cannot be discovered even by a peer that already
+  /// knows its address. Takes effect immediately, without restarting
+  /// the server.
+  Future<void> setDiscoverable({required bool discoverable});
 
   /// Stops the server.
   /// Returns after the listeners are closed, so the port can be bound again.

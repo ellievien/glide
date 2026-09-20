@@ -204,6 +204,7 @@ impl LsHttpClientV3 {
     ///
     /// `cancel` is a cancellation token; cancelling it aborts the upload with
     /// [`ClientError::Cancelled`].
+    #[allow(clippy::too_many_arguments)]
     pub async fn upload(
         &self,
         protocol: ProtocolType,
@@ -213,9 +214,19 @@ impl LsHttpClientV3 {
         session_id: &str,
         file_id: &str,
         token: &str,
+        resume_offset: u64,
         body: reqwest::Body,
         cancel: CancellationToken,
     ) -> Result<(), ClientError> {
+        let offset_str = resume_offset.to_string();
+        let mut params = vec![
+            ("sessionId", session_id),
+            ("fileId", file_id),
+            ("token", token),
+        ];
+        if resume_offset > 0 {
+            params.push(("offset", offset_str.as_str()));
+        }
         let send = self
             .client
             .post(
@@ -225,11 +236,7 @@ impl LsHttpClientV3 {
                     host: ip.to_string(),
                     port,
                     path: "/upload",
-                    params: &[
-                        ("sessionId", &session_id),
-                        ("fileId", &file_id),
-                        ("token", &token),
-                    ],
+                    params: &params,
                 }
                 .to_string(),
             )

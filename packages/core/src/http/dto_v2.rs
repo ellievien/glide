@@ -108,6 +108,17 @@ pub struct PrepareUploadResponseDtoV2 {
     /// Map of file ID to file token.
     /// Only contains files that were accepted by the receiver.
     pub files: HashMap<String, String>,
+
+    /// GLIDE extension (additive, ignored by stock LocalSend senders): map of
+    /// file ID to the number of bytes the receiver already has on disk for
+    /// that file from a previous, interrupted attempt at the same content
+    /// (matched by name/size/modified-time, not by this session's file ID,
+    /// since that is freshly generated every attempt). A GLIDE sender that
+    /// finds an entry here and confirms its local source file is unchanged
+    /// may pass that value as `upload`'s `resume_offset` instead of always
+    /// starting from 0. Files with nothing to resume are simply absent.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub resume_offsets: HashMap<String, u64>,
 }
 
 pub struct PrepareUploadResultV2 {

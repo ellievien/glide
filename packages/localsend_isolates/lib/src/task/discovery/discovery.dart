@@ -48,11 +48,19 @@ class DiscoveryService {
   }
 
   Future<void> _runListener(StreamController<Device> devices) async {
-    // Announcements are only answered while the server runs: the answer would
-    // advertise an HTTP port that nobody listens on otherwise.
+    // Announcements are only answered while the server runs (the answer
+    // would advertise an HTTP port that nobody listens on otherwise) and
+    // while this device is discoverable (Settings > Visibility is not
+    // "Hidden"). Hidden also stops this device from announcing itself, but
+    // it can still discover and send to others.
     _ref.stream(syncProvider).listen((event) {
-      if (event.prev.serverRunning != event.next.serverRunning) {
-        unawaited(_discovery?.setAnswerAnnouncements(answer: event.next.serverRunning));
+      final prevAnswer = event.prev.serverRunning && event.prev.discoverable;
+      final nextAnswer = event.next.serverRunning && event.next.discoverable;
+      if (prevAnswer != nextAnswer) {
+        unawaited(_discovery?.setAnswerAnnouncements(answer: nextAnswer));
+      }
+      if (event.prev.discoverable != event.next.discoverable) {
+        unawaited(_discovery?.setAnnouncing(announcing: event.next.discoverable));
       }
     });
 
@@ -90,8 +98,12 @@ class DiscoveryService {
         _logger.warning('Discovery runs without multicast (group: ${syncState.multicastGroup}, port: ${syncState.port}): $multicastError');
       }
 
-      if (!_ref.read(syncProvider).serverRunning) {
+      final currentSyncState = _ref.read(syncProvider);
+      if (!currentSyncState.serverRunning || !currentSyncState.discoverable) {
         await discovery.setAnswerAnnouncements(answer: false);
+      }
+      if (!currentSyncState.discoverable) {
+        await discovery.setAnnouncing(announcing: false);
       }
 
       _discovery = discovery;

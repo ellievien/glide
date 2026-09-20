@@ -55,7 +55,7 @@ extension RsHttpClientErrorPatterns on RsHttpClientError {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( RsHttpClientError_StatusCode value)?  statusCode,TResult Function( RsHttpClientError_Reqwest value)?  reqwest,TResult Function( RsHttpClientError_Json value)?  json,TResult Function( RsHttpClientError_Io value)?  io,TResult Function( RsHttpClientError_Other value)?  other,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( RsHttpClientError_StatusCode value)?  statusCode,TResult Function( RsHttpClientError_Reqwest value)?  reqwest,TResult Function( RsHttpClientError_Json value)?  json,TResult Function( RsHttpClientError_Io value)?  io,TResult Function( RsHttpClientError_Other value)?  other,TResult Function( RsHttpClientError_Cancelled value)?  cancelled,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case RsHttpClientError_StatusCode() when statusCode != null:
@@ -63,7 +63,8 @@ return statusCode(_that);case RsHttpClientError_Reqwest() when reqwest != null:
 return reqwest(_that);case RsHttpClientError_Json() when json != null:
 return json(_that);case RsHttpClientError_Io() when io != null:
 return io(_that);case RsHttpClientError_Other() when other != null:
-return other(_that);case _:
+return other(_that);case RsHttpClientError_Cancelled() when cancelled != null:
+return cancelled(_that);case _:
   return orElse();
 
 }
@@ -81,7 +82,7 @@ return other(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( RsHttpClientError_StatusCode value)  statusCode,required TResult Function( RsHttpClientError_Reqwest value)  reqwest,required TResult Function( RsHttpClientError_Json value)  json,required TResult Function( RsHttpClientError_Io value)  io,required TResult Function( RsHttpClientError_Other value)  other,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( RsHttpClientError_StatusCode value)  statusCode,required TResult Function( RsHttpClientError_Reqwest value)  reqwest,required TResult Function( RsHttpClientError_Json value)  json,required TResult Function( RsHttpClientError_Io value)  io,required TResult Function( RsHttpClientError_Other value)  other,required TResult Function( RsHttpClientError_Cancelled value)  cancelled,}){
 final _that = this;
 switch (_that) {
 case RsHttpClientError_StatusCode():
@@ -89,7 +90,8 @@ return statusCode(_that);case RsHttpClientError_Reqwest():
 return reqwest(_that);case RsHttpClientError_Json():
 return json(_that);case RsHttpClientError_Io():
 return io(_that);case RsHttpClientError_Other():
-return other(_that);}
+return other(_that);case RsHttpClientError_Cancelled():
+return cancelled(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -103,7 +105,7 @@ return other(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( RsHttpClientError_StatusCode value)?  statusCode,TResult? Function( RsHttpClientError_Reqwest value)?  reqwest,TResult? Function( RsHttpClientError_Json value)?  json,TResult? Function( RsHttpClientError_Io value)?  io,TResult? Function( RsHttpClientError_Other value)?  other,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( RsHttpClientError_StatusCode value)?  statusCode,TResult? Function( RsHttpClientError_Reqwest value)?  reqwest,TResult? Function( RsHttpClientError_Json value)?  json,TResult? Function( RsHttpClientError_Io value)?  io,TResult? Function( RsHttpClientError_Other value)?  other,TResult? Function( RsHttpClientError_Cancelled value)?  cancelled,}){
 final _that = this;
 switch (_that) {
 case RsHttpClientError_StatusCode() when statusCode != null:
@@ -111,7 +113,8 @@ return statusCode(_that);case RsHttpClientError_Reqwest() when reqwest != null:
 return reqwest(_that);case RsHttpClientError_Json() when json != null:
 return json(_that);case RsHttpClientError_Io() when io != null:
 return io(_that);case RsHttpClientError_Other() when other != null:
-return other(_that);case _:
+return other(_that);case RsHttpClientError_Cancelled() when cancelled != null:
+return cancelled(_that);case _:
   return null;
 
 }
@@ -128,14 +131,15 @@ return other(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( int status,  String? message)?  statusCode,TResult Function( String field0)?  reqwest,TResult Function( String field0)?  json,TResult Function( String field0)?  io,TResult Function( String field0)?  other,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( int status,  String? message)?  statusCode,TResult Function( String field0)?  reqwest,TResult Function( String field0)?  json,TResult Function( String field0)?  io,TResult Function( String field0)?  other,TResult Function()?  cancelled,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case RsHttpClientError_StatusCode() when statusCode != null:
 return statusCode(_that.status,_that.message);case RsHttpClientError_Reqwest() when reqwest != null:
 return reqwest(_that.field0);case RsHttpClientError_Json() when json != null:
 return json(_that.field0);case RsHttpClientError_Io() when io != null:
 return io(_that.field0);case RsHttpClientError_Other() when other != null:
-return other(_that.field0);case _:
+return other(_that.field0);case RsHttpClientError_Cancelled() when cancelled != null:
+return cancelled();case _:
   return orElse();
 
 }
@@ -153,14 +157,15 @@ return other(_that.field0);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( int status,  String? message)  statusCode,required TResult Function( String field0)  reqwest,required TResult Function( String field0)  json,required TResult Function( String field0)  io,required TResult Function( String field0)  other,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( int status,  String? message)  statusCode,required TResult Function( String field0)  reqwest,required TResult Function( String field0)  json,required TResult Function( String field0)  io,required TResult Function( String field0)  other,required TResult Function()  cancelled,}) {final _that = this;
 switch (_that) {
 case RsHttpClientError_StatusCode():
 return statusCode(_that.status,_that.message);case RsHttpClientError_Reqwest():
 return reqwest(_that.field0);case RsHttpClientError_Json():
 return json(_that.field0);case RsHttpClientError_Io():
 return io(_that.field0);case RsHttpClientError_Other():
-return other(_that.field0);}
+return other(_that.field0);case RsHttpClientError_Cancelled():
+return cancelled();}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -174,14 +179,15 @@ return other(_that.field0);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( int status,  String? message)?  statusCode,TResult? Function( String field0)?  reqwest,TResult? Function( String field0)?  json,TResult? Function( String field0)?  io,TResult? Function( String field0)?  other,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( int status,  String? message)?  statusCode,TResult? Function( String field0)?  reqwest,TResult? Function( String field0)?  json,TResult? Function( String field0)?  io,TResult? Function( String field0)?  other,TResult? Function()?  cancelled,}) {final _that = this;
 switch (_that) {
 case RsHttpClientError_StatusCode() when statusCode != null:
 return statusCode(_that.status,_that.message);case RsHttpClientError_Reqwest() when reqwest != null:
 return reqwest(_that.field0);case RsHttpClientError_Json() when json != null:
 return json(_that.field0);case RsHttpClientError_Io() when io != null:
 return io(_that.field0);case RsHttpClientError_Other() when other != null:
-return other(_that.field0);case _:
+return other(_that.field0);case RsHttpClientError_Cancelled() when cancelled != null:
+return cancelled();case _:
   return null;
 
 }
@@ -522,6 +528,38 @@ as String,
 }
 
 /// @nodoc
+
+
+class RsHttpClientError_Cancelled extends RsHttpClientError {
+  const RsHttpClientError_Cancelled(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RsHttpClientError_Cancelled);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'RsHttpClientError.cancelled()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
 mixin _$RsUploadEvent {
 
 
@@ -629,10 +667,10 @@ return failed(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( double progress)?  progress,TResult Function( RsHttpClientError error)?  failed,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( double progress,  BigInt sentBytes)?  progress,TResult Function( RsHttpClientError error)?  failed,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case RsUploadEvent_Progress() when progress != null:
-return progress(_that.progress);case RsUploadEvent_Failed() when failed != null:
+return progress(_that.progress,_that.sentBytes);case RsUploadEvent_Failed() when failed != null:
 return failed(_that.error);case _:
   return orElse();
 
@@ -651,10 +689,10 @@ return failed(_that.error);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( double progress)  progress,required TResult Function( RsHttpClientError error)  failed,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( double progress,  BigInt sentBytes)  progress,required TResult Function( RsHttpClientError error)  failed,}) {final _that = this;
 switch (_that) {
 case RsUploadEvent_Progress():
-return progress(_that.progress);case RsUploadEvent_Failed():
+return progress(_that.progress,_that.sentBytes);case RsUploadEvent_Failed():
 return failed(_that.error);}
 }
 /// A variant of `when` that fallback to returning `null`
@@ -669,10 +707,10 @@ return failed(_that.error);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( double progress)?  progress,TResult? Function( RsHttpClientError error)?  failed,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( double progress,  BigInt sentBytes)?  progress,TResult? Function( RsHttpClientError error)?  failed,}) {final _that = this;
 switch (_that) {
 case RsUploadEvent_Progress() when progress != null:
-return progress(_that.progress);case RsUploadEvent_Failed() when failed != null:
+return progress(_that.progress,_that.sentBytes);case RsUploadEvent_Failed() when failed != null:
 return failed(_that.error);case _:
   return null;
 
@@ -685,10 +723,11 @@ return failed(_that.error);case _:
 
 
 class RsUploadEvent_Progress extends RsUploadEvent {
-  const RsUploadEvent_Progress({required this.progress}): super._();
+  const RsUploadEvent_Progress({required this.progress, required this.sentBytes}): super._();
   
 
  final  double progress;
+ final  BigInt sentBytes;
 
 /// Create a copy of RsUploadEvent
 /// with the given fields replaced by the non-null parameter values.
@@ -700,16 +739,16 @@ $RsUploadEvent_ProgressCopyWith<RsUploadEvent_Progress> get copyWith => _$RsUplo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RsUploadEvent_Progress&&(identical(other.progress, progress) || other.progress == progress));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RsUploadEvent_Progress&&(identical(other.progress, progress) || other.progress == progress)&&(identical(other.sentBytes, sentBytes) || other.sentBytes == sentBytes));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,progress);
+int get hashCode => Object.hash(runtimeType,progress,sentBytes);
 
 @override
 String toString() {
-  return 'RsUploadEvent.progress(progress: $progress)';
+  return 'RsUploadEvent.progress(progress: $progress, sentBytes: $sentBytes)';
 }
 
 
@@ -720,7 +759,7 @@ abstract mixin class $RsUploadEvent_ProgressCopyWith<$Res> implements $RsUploadE
   factory $RsUploadEvent_ProgressCopyWith(RsUploadEvent_Progress value, $Res Function(RsUploadEvent_Progress) _then) = _$RsUploadEvent_ProgressCopyWithImpl;
 @useResult
 $Res call({
- double progress
+ double progress, BigInt sentBytes
 });
 
 
@@ -737,10 +776,11 @@ class _$RsUploadEvent_ProgressCopyWithImpl<$Res>
 
 /// Create a copy of RsUploadEvent
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') $Res call({Object? progress = null,}) {
+@pragma('vm:prefer-inline') $Res call({Object? progress = null,Object? sentBytes = null,}) {
   return _then(RsUploadEvent_Progress(
 progress: null == progress ? _self.progress : progress // ignore: cast_nullable_to_non_nullable
-as double,
+as double,sentBytes: null == sentBytes ? _self.sentBytes : sentBytes // ignore: cast_nullable_to_non_nullable
+as BigInt,
   ));
 }
 

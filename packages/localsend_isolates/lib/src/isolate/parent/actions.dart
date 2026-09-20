@@ -296,6 +296,41 @@ class IsolateHttpUploadCancelAction extends ReduxAction<IsolateController, Paren
   }
 }
 
+/// Cancels a single file of an [IsolateHttpUploadFilesAction] task without
+/// affecting the other files it shares the task with, e.g. a user pausing
+/// one file mid-transfer.
+class IsolateHttpUploadCancelFileAction extends ReduxAction<IsolateController, ParentIsolateState> {
+  final int taskId;
+  final String fileId;
+
+  IsolateHttpUploadCancelFileAction({
+    required this.taskId,
+    required this.fileId,
+  });
+
+  @override
+  ParentIsolateState reduce() {
+    final connection = state.httpUpload;
+    if (connection == null) {
+      throw StateError('httpUpload is not initialized');
+    }
+
+    connection.sendToIsolate(
+      SendToIsolateData(
+        syncState: null,
+        data: IsolateTask(
+          data: HttpUploadCancelFileTask(
+            taskId: taskId,
+            fileId: fileId,
+          ),
+        ),
+      ),
+    );
+
+    return state;
+  }
+}
+
 /// Starts the HTTP server and returns the stream of server events.
 /// The stream ends when the server is stopped via [IsolateHttpServerStopAction].
 class IsolateHttpServerStartAction extends ReduxActionWithResult<IsolateController, ParentIsolateState, Stream<HttpServerEvent>> {
@@ -420,6 +455,41 @@ class IsolateHttpServerCancelSessionAction extends ReduxAction<IsolateController
         data: IsolateTask(
           data: HttpServerCancelSessionTask(
             sessionId: sessionId,
+          ),
+        ),
+      ),
+    );
+
+    return state;
+  }
+}
+
+/// Cancels a single accepted file before its upload has started. See
+/// [HttpServerCancelFileTask] for exactly when this does and does not have
+/// an effect.
+class IsolateHttpServerCancelFileAction extends ReduxAction<IsolateController, ParentIsolateState> {
+  final String sessionId;
+  final String fileId;
+
+  IsolateHttpServerCancelFileAction({
+    required this.sessionId,
+    required this.fileId,
+  });
+
+  @override
+  ParentIsolateState reduce() {
+    final connection = state.httpServer;
+    if (connection == null) {
+      throw StateError('httpServer is not initialized');
+    }
+
+    connection.sendToIsolate(
+      SendToIsolateData(
+        syncState: null,
+        data: IsolateTask(
+          data: HttpServerCancelFileTask(
+            sessionId: sessionId,
+            fileId: fileId,
           ),
         ),
       ),

@@ -76,6 +76,7 @@ async fn start_register_server(
             event_tx,
         }),
         WebConfig::default(),
+        true,
         stop_rx,
     )
     .await

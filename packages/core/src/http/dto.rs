@@ -95,6 +95,13 @@ pub struct PrepareUploadRequestDto {
 pub struct PrepareUploadResponseDto {
     pub session_id: String,
     pub files: HashMap<String, String>,
+
+    /// See `dto_v2::PrepareUploadResponseDtoV2::resume_offsets`. Always
+    /// empty on a v3 (nonce-based) exchange for now, since v3 does not yet
+    /// serve `/upload` itself -- see the `From<PrepareUploadResponseDtoV2>`
+    /// impl below for the v2 path, which does populate it.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub resume_offsets: HashMap<String, u64>,
 }
 
 impl From<PrepareUploadRequestDto> for PrepareUploadRequestDtoV2 {
@@ -116,6 +123,7 @@ impl From<PrepareUploadResponseDtoV2> for PrepareUploadResponseDto {
         PrepareUploadResponseDto {
             session_id: v2.session_id,
             files: v2.files,
+            resume_offsets: v2.resume_offsets,
         }
     }
 }

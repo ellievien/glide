@@ -28,6 +28,7 @@ use std::fmt::Debug;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::num::NonZeroUsize;
 use std::ops::Deref;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tokio_util::sync::CancellationToken;
@@ -85,6 +86,10 @@ pub struct AppState {
 
     /// State of the v2 protocol endpoints. `None` disables the v2 routes.
     v2: Option<Arc<V2State>>,
+
+    /// Whether `/register` answers with this device's info. See
+    /// [`ServerHandle::set_discoverable`].
+    discoverable: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -93,6 +98,7 @@ impl AppState {
         internal_config: Option<InternalConfig>,
         v2_config: Option<ServerConfigV2>,
         web_config: WebConfig,
+        discoverable: Arc<AtomicBool>,
     ) -> Self {
         let v2 = v2_config.map(|config| {
             Arc::new(V2State {
@@ -117,6 +123,7 @@ impl AppState {
                 NonZeroUsize::new(200).unwrap(),
             ))),
             v2,
+            discoverable,
         }
     }
 }
@@ -132,6 +139,10 @@ pub struct ServerHandle {
     /// Whether the IPv6 wildcard listener could be bound.
     ipv6_bound: bool,
 
+    /// Whether `/register` answers with this device's info, see
+    /// [`ServerHandle::set_discoverable`].
+    discoverable: Arc<AtomicBool>,
+
     /// The task running the accept loops. Completes after a stop has been
     /// requested, the listeners have been dropped and all connections have
     /// been closed.
@@ -143,6 +154,19 @@ impl ServerHandle {
     /// started with port 0, where the OS picks the port.
     pub fn port(&self) -> u16 {
         self.port
+    }
+
+    /// Sets whether `/register` (v2 and v3) answers with this device's info.
+    /// On by default.
+    ///
+    /// An application whose visibility is set to "hidden" turns this off:
+    /// the endpoint then answers as if it did not exist (404), so a peer
+    /// that already knows this device's address (a favorite, or a subnet
+    /// scan) cannot register with it either. Takes effect immediately,
+    /// without restarting the server. Sending to other devices is
+    /// unaffected: it does not go through this endpoint.
+    pub fn set_discoverable(&self, discoverable: bool) {
+        self.discoverable.store(discoverable, Ordering::Relaxed);
     }
 
     /// The socket addresses this server can be reached at: every address of
@@ -215,6 +239,7 @@ pub async fn start_with_port(
     internal_config: Option<InternalConfig>,
     v2_config: Option<ServerConfigV2>,
     web_config: WebConfig,
+    discoverable: bool,
     stop_rx: oneshot::Receiver<()>,
 ) -> anyhow::Result<ServerHandle> {
     // Installed before returning, so that a client built right after (which
@@ -223,7 +248,14 @@ pub async fn start_with_port(
 
     let ipv4_socket_addr = SocketAddr::new(Ipv4Addr::UNSPECIFIED.into(), port);
     let info = Arc::new(Mutex::new(info));
-    let state = AppState::new(info.clone(), internal_config, v2_config, web_config);
+    let discoverable = Arc::new(AtomicBool::new(discoverable));
+    let state = AppState::new(
+        info.clone(),
+        internal_config,
+        v2_config,
+        web_config,
+        discoverable.clone(),
+    );
 
     let ipv4_listener = tokio::net::TcpListener::bind(ipv4_socket_addr).await?;
     // With port 0, the IPv6 listener must reuse the port the IPv4 listener got.
@@ -288,6 +320,7 @@ pub async fn start_with_port(
         v2: state.v2.clone(),
         port: bound_port,
         ipv6_bound,
+        discoverable,
         task: Mutex::new(Some(task)),
     })
 }

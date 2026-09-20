@@ -211,6 +211,7 @@ pub async fn start_server(
     verify_checksums: bool,
     web: WebParams,
     show_token: Option<String>,
+    discoverable: bool,
 ) -> anyhow::Result<RsHttpServer> {
     // Stop a server left over from before a hot restart (its Dart owner died
     // without calling stop)
@@ -270,6 +271,7 @@ pub async fn start_server(
             event_tx,
         }),
         web_config,
+        discoverable,
         stop_rx,
     )
     .await?;
@@ -482,18 +484,20 @@ impl RsHttpServer {
 
     /// Answers the pending [RsServerEvent::PrepareUpload] event.
     ///
-    /// Passing the accepted file IDs (a subset of the offered files) accepts the request.
-    /// Passing `None` declines the request.
+    /// Passing the accepted files (a subset of the offered files, each
+    /// mapped to a resume offer -- 0 for a normal file, or the number of
+    /// bytes already on disk for that file's content from a previous
+    /// interrupted attempt) accepts the request. Passing `None` declines it.
     pub async fn respond_prepare_upload(
         &self,
-        accepted_file_ids: Option<Vec<String>>,
+        accepted_files: Option<HashMap<String, u64>>,
     ) -> anyhow::Result<()> {
         let Some((_, decision_tx)) = self.pending_decision.lock().await.take() else {
             return Err(anyhow::anyhow!("No pending prepare-upload request"));
         };
 
-        let decision = match accepted_file_ids {
-            Some(ids) => PrepareUploadDecisionV2::Accept(ids.into_iter().collect()),
+        let decision = match accepted_files {
+            Some(offers) => PrepareUploadDecisionV2::Accept(offers),
             None => PrepareUploadDecisionV2::Decline,
         };
 
@@ -674,6 +678,15 @@ impl RsHttpServer {
             .lock()
             .await
             .retain(|(sid, _), _| sid != &session_id);
+    }
+
+    /// Sets whether `/register` answers with this device's info. On by
+    /// default; the app turns it off when device visibility is "Hidden",
+    /// so this device cannot be discovered even by a peer that already
+    /// knows its address. Takes effect immediately, without restarting
+    /// the server.
+    pub fn set_discoverable(&self, discoverable: bool) {
+        self.instance.handle.set_discoverable(discoverable);
     }
 
     /// Stops the server.

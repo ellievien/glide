@@ -103,12 +103,23 @@ pub(crate) enum SaveResult {
 }
 
 /// Forwards the body of `req` to `target`.
+///
+/// `resume_offset` is nonzero when the sender claims to be continuing a
+/// previous attempt at this file from that many bytes: the request body then
+/// carries only the remaining `file_size - resume_offset` bytes. Only
+/// [FileUploadTarget::Path] can honor this (there is no on-disk file to
+/// verify or append to for [FileUploadTarget::Stream]/`Fd`); the offset is
+/// validated against the file that is actually on disk before it is trusted,
+/// and silently treated as 0 (a fresh write, exactly like today) when it
+/// cannot be verified, so a stale or wrong claim never gets an out-of-order
+/// or garbage file.
 pub(crate) async fn save_req_to_target(
     req: Request<Incoming>,
     target: FileUploadTarget,
     file_size: u64,
     expected_sha256: Option<&str>,
     timestamps: FileTimestamps,
+    resume_offset: u64,
 ) -> SaveResult {
     use sha2::{Digest, Sha256};
 
@@ -116,6 +127,7 @@ pub(crate) async fn save_req_to_target(
     // For [FileUploadTarget::Path] and [FileUploadTarget::Fd], the application's
     // result channel is answered by this function once the complete outcome
     // (including the checksum verification) is known.
+    let mut hasher = expected_sha256.map(|_| Sha256::new());
     let (binary_tx, result_rx, app_result_tx) = match target {
         FileUploadTarget::Stream {
             binary_tx,
@@ -126,13 +138,63 @@ pub(crate) async fn save_req_to_target(
             result_tx,
             progress_tx,
         } => {
+            // Only resume when the file on disk actually has exactly
+            // `resume_offset` bytes already: a shorter, longer, or missing
+            // file means the claim does not match reality, so fall back to
+            // a fresh write rather than append at the wrong position or
+            // hash the wrong prefix.
+            let mut effective_offset = if resume_offset == 0 {
+                0
+            } else {
+                match tokio::fs::metadata(&path).await {
+                    Ok(meta) if meta.len() == resume_offset => resume_offset,
+                    _ => {
+                        tracing::warn!(
+                            "Resume offset {resume_offset} for {} does not match the file on disk; starting over",
+                            path.display()
+                        );
+                        0
+                    }
+                }
+            };
+
+            if effective_offset > 0 && hasher.is_some() {
+                // Pre-hash the bytes already on disk (a local read, not
+                // network traffic) so the final digest still covers the
+                // whole file, not just the newly streamed tail. If that
+                // fails, fall back to a fresh write+hash from byte 0 instead
+                // of finalizing a hash that silently skipped a prefix.
+                match tokio::fs::read(&path).await {
+                    Ok(existing) if existing.len() as u64 == effective_offset => {
+                        hasher.as_mut().unwrap().update(&existing);
+                    }
+                    _ => {
+                        tracing::warn!(
+                            "Could not re-read {} to resume its checksum; starting over",
+                            path.display()
+                        );
+                        effective_offset = 0;
+                        hasher = Some(Sha256::new());
+                    }
+                }
+            }
+
             let (binary_tx, result_rx) = spawn_file_writer(
                 async move {
-                    tokio::fs::File::create(&path)
-                        .await
-                        .map_err(|e| format!("Failed to create {}: {e}", path.display()))
+                    if effective_offset > 0 {
+                        tokio::fs::OpenOptions::new()
+                            .append(true)
+                            .open(&path)
+                            .await
+                            .map_err(|e| format!("Failed to reopen {}: {e}", path.display()))
+                    } else {
+                        tokio::fs::File::create(&path)
+                            .await
+                            .map_err(|e| format!("Failed to create {}: {e}", path.display()))
+                    }
                 },
                 file_size,
+                effective_offset,
                 progress_tx,
                 timestamps,
             );
@@ -144,6 +206,8 @@ pub(crate) async fn save_req_to_target(
             result_tx,
             progress_tx,
         } => {
+            // Resume is not supported for SAF/fd targets: the descriptor is
+            // opened fresh by the application for every attempt.
             let (binary_tx, result_rx) = spawn_file_writer(
                 async move {
                     use std::os::fd::FromRawFd;
@@ -154,6 +218,7 @@ pub(crate) async fn save_req_to_target(
                     Ok(tokio::fs::File::from_std(std_file))
                 },
                 file_size,
+                0,
                 progress_tx,
                 timestamps,
             );
@@ -162,7 +227,6 @@ pub(crate) async fn save_req_to_target(
     };
 
     // Forward the request body to the target, hashing it on the way if requested.
-    let mut hasher = expected_sha256.map(|_| Sha256::new());
     let mut body = req.into_body();
     let mut stream_error = false;
     while let Some(frame) = body.frame().await {
@@ -252,6 +316,7 @@ pub(crate) async fn save_req_to_target(
 fn spawn_file_writer(
     open: impl Future<Output = Result<tokio::fs::File, String>> + Send + 'static,
     expected_size: u64,
+    resume_offset: u64,
     progress_tx: Option<mpsc::Sender<u64>>,
     timestamps: FileTimestamps,
 ) -> (mpsc::Sender<Bytes>, oneshot::Receiver<Result<(), String>>) {
@@ -259,9 +324,15 @@ fn spawn_file_writer(
     let (internal_tx, internal_rx) = oneshot::channel::<Result<(), String>>();
 
     tokio::spawn(async move {
-        let result =
-            write_file_from_receiver(open, expected_size, &mut binary_rx, progress_tx, timestamps)
-                .await;
+        let result = write_file_from_receiver(
+            open,
+            expected_size,
+            resume_offset,
+            &mut binary_rx,
+            progress_tx,
+            timestamps,
+        )
+        .await;
         // Unblock the request handler if it is still sending chunks.
         binary_rx.close();
         let _ = internal_tx.send(result);
@@ -270,10 +341,13 @@ fn spawn_file_writer(
     (binary_tx, internal_rx)
 }
 
-/// Writes all chunks received on `rx` to the file provided by `open`.
+/// Writes all chunks received on `rx` to the file provided by `open`, which
+/// already holds `resume_offset` verified bytes when resuming (opened in
+/// append mode by the caller) or is empty/fresh otherwise.
 ///
-/// Fails if the total number of written bytes does not match `expected_size`
-/// (e.g. the sender disconnected mid-transfer).
+/// Fails if the total number of written bytes (`resume_offset` plus what is
+/// received here) does not match `expected_size` (e.g. the sender
+/// disconnected mid-transfer).
 ///
 /// The file is truncated to the written size, so that a target that pointed at
 /// a longer, pre-existing file cannot keep a tail of the old content.
@@ -284,6 +358,7 @@ fn spawn_file_writer(
 async fn write_file_from_receiver(
     open: impl Future<Output = Result<tokio::fs::File, String>>,
     expected_size: u64,
+    resume_offset: u64,
     rx: &mut mpsc::Receiver<Bytes>,
     progress_tx: Option<mpsc::Sender<u64>>,
     timestamps: FileTimestamps,
@@ -291,7 +366,7 @@ async fn write_file_from_receiver(
     use tokio::io::AsyncWriteExt;
 
     let mut file = tokio::io::BufWriter::with_capacity(WRITE_BUFFER_SIZE, open.await?);
-    let mut written: u64 = 0;
+    let mut written: u64 = resume_offset;
     while let Some(chunk) = rx.recv().await {
         written += chunk.len() as u64;
         if written > expected_size {

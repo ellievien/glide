@@ -26,8 +26,19 @@ class HttpUploadService {
     required String? remoteSessionId,
     required String fileId,
     required String token,
-    required void Function(double progress) onSendProgress,
+    // [sentBytes] is how much of the whole file (counted from [resumeOffset])
+    // has been handed to the outgoing stream so far -- not a confirmation
+    // that the receiver has durably written it. Callers that want to retry a
+    // dropped upload by resuming should treat the last [sentBytes] they saw
+    // as a candidate offset only; the receiver independently verifies it
+    // against what it actually has on disk before honoring it.
+    required void Function(double progress, int sentBytes) onSendProgress,
     required RsCancellationToken cancelToken,
+    // Bytes of this file the receiver has already confirmed in a previous,
+    // interrupted attempt; 0 for a normal, from-scratch upload. Only takes
+    // effect for a [path] source, which is seeked past this many bytes
+    // before streaming (see `RsHttpClient.upload`'s Rust-side doc comment).
+    int resumeOffset = 0,
   }) async {
     final (sink, receiver) = stream != null ? await createStream() : (null, null);
 
@@ -42,6 +53,7 @@ class HttpUploadService {
           sessionId: remoteSessionId ?? '',
           fileId: fileId,
           token: token,
+          resumeOffset: BigInt.from(resumeOffset),
           binary: receiver,
           path: path,
           fileDescriptor: fileDescriptor,
@@ -50,8 +62,8 @@ class HttpUploadService {
         )
         .forEach((event) {
           switch (event) {
-            case RsUploadEvent_Progress(:final progress):
-              onSendProgress(progress);
+            case RsUploadEvent_Progress(:final progress, :final sentBytes):
+              onSendProgress(progress, sentBytes.toInt());
             case RsUploadEvent_Failed(:final error):
               // Fails [uploadFuture] with the typed client error.
               throw error;

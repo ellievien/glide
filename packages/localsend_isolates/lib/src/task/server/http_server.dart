@@ -25,6 +25,7 @@ class HttpServerService {
     required bool verifyChecksums,
     required WebParams web,
     required String? showToken,
+    required bool discoverable,
   }) async {
     if (_server != null) {
       throw StateError('Server already running');
@@ -42,15 +43,29 @@ class HttpServerService {
       verifyChecksums: verifyChecksums,
       web: web,
       showToken: showToken,
+      discoverable: discoverable,
     );
     _server = server;
     return server.listen();
   }
 
+  /// Sets whether `/register` answers with this device's info. On by
+  /// default; the app turns it off when device visibility is "Hidden".
+  /// Takes effect immediately, without restarting the server.
+  void setDiscoverable({required bool discoverable}) {
+    _server?.setDiscoverable(discoverable: discoverable);
+  }
+
   /// Answers a pending prepare-upload request.
-  /// [acceptedFileIds] is the subset of the offered files to accept; `null` declines the request.
-  Future<void> respondPrepareUpload({required List<String>? acceptedFileIds}) async {
-    await _requireServer().respondPrepareUpload(acceptedFileIds: acceptedFileIds);
+  ///
+  /// [acceptedFiles] maps the subset of the offered files to accept to a
+  /// resume offer for each (0 for a normal file, or the number of bytes
+  /// already on disk for that file's content from a previous interrupted
+  /// attempt); `null` declines the request.
+  Future<void> respondPrepareUpload({required Map<String, int>? acceptedFiles}) async {
+    await _requireServer().respondPrepareUpload(
+      acceptedFiles: acceptedFiles?.map((id, offset) => MapEntry(id, BigInt.from(offset))),
+    );
   }
 
   /// Answers a pending file upload with the target the file should be saved to

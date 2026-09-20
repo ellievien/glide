@@ -49,6 +49,7 @@ async fn start_test_server(internal_enabled: bool) -> TestServer {
         internal_config,
         None,
         WebConfig::default(),
+        true,
         stop_rx,
     )
     .await

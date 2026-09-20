@@ -11,6 +11,7 @@ import 'package:localsend_isolates/src/isolate/child/sync_provider.dart';
 import 'package:localsend_isolates/src/isolate/dto/send_to_isolate_data.dart';
 import 'package:localsend_isolates/src/task/server/file_saver.dart';
 import 'package:localsend_isolates/src/task/server/http_server.dart';
+import 'package:localsend_isolates/src/task/server/partial_transfer_store.dart';
 import 'package:localsend_isolates/util/future_queue.dart';
 import 'package:localsend_isolates/util/rust.dart';
 import 'package:logging/logging.dart';
@@ -18,6 +19,11 @@ import 'package:refena_flutter/refena_flutter.dart';
 import 'package:typed_isolates/typed_isolates.dart';
 
 final _logger = Logger('HttpServerIsolate');
+
+/// Whether [PartialTransferStore.cleanupStale] has already run once for the
+/// destination directory this isolate has seen so far -- see where it is
+/// used, in the prepare-upload decision handler.
+bool _didCleanupStaleTransfers = false;
 
 sealed class BaseHttpServerTask {}
 
@@ -115,6 +121,23 @@ class HttpServerCancelSessionTask implements BaseHttpServerTask {
 
   HttpServerCancelSessionTask({
     required this.sessionId,
+  });
+}
+
+/// Cancels a single accepted file before its upload has started, e.g. the
+/// receiver changing their mind about one file of a multi-file request. Has
+/// no effect once the file's [HttpServerFileUploadEvent] has already been
+/// answered with a save target: the receive side has no way to interrupt a
+/// write already in progress (unlike the send side, which can abort an
+/// outgoing stream), so this only ever pre-empts a file that has not started
+/// yet.
+class HttpServerCancelFileTask implements BaseHttpServerTask {
+  final String sessionId;
+  final String fileId;
+
+  HttpServerCancelFileTask({
+    required this.sessionId,
+    required this.fileId,
   });
 }
 
@@ -367,14 +390,38 @@ class _ReceiveSession {
   /// of being saved next to it under a numbered name.
   final Map<String, FileSaveTarget> targets = {};
 
+  /// The content identity of each file of this session, by file ID -- stable
+  /// across attempts (including a resume after this app was restarted),
+  /// unlike the file ID itself. Only set for files eligible for staged,
+  /// resumable saving (a regular path destination, not the gallery or an
+  /// Android SAF descriptor); absent otherwise.
+  final Map<String, PartialFileIdentity> identities = {};
+
+  /// File IDs cancelled via [HttpServerCancelFileTask] before their upload
+  /// started, checked at the top of [_handleFileUpload].
+  final Set<String> cancelledFileIds = {};
+
   _ReceiveSession(this.config);
 }
 
-/// Holds the active receive session, set when a prepare-upload request is accepted.
+/// Holds the active receive session, set when a prepare-upload request is
+/// accepted, plus the offer of the [HttpServerPrepareUploadEvent] currently
+/// awaiting a decision -- cached here (rather than threaded through
+/// [HttpServerPrepareUploadDecisionTask]) purely so the decision handler can
+/// compute resume offers from it without the caller having to round-trip the
+/// same data back in.
 final _receiveSessionProvider = Provider((ref) => _ReceiveSessionHolder());
 
 class _ReceiveSessionHolder {
   _ReceiveSession? session;
+  _PendingOffer? pendingOffer;
+}
+
+class _PendingOffer {
+  final String senderFingerprint;
+  final Map<String, FileDto> files;
+
+  _PendingOffer({required this.senderFingerprint, required this.files});
 }
 
 Future<void> setupHttpServerIsolate(
@@ -393,6 +440,14 @@ Future<void> setupHttpServerIsolate(
       BackgroundIsolateBinaryMessenger.ensureInitialized(
         ref.read(syncProvider).rootIsolateToken as RootIsolateToken,
       );
+
+      // Applied live, without restarting the server, e.g. when Settings >
+      // Visibility changes.
+      ref.stream(syncProvider).listen((event) {
+        if (event.prev.discoverable != event.next.discoverable) {
+          ref.read(httpServerProvider).setDiscoverable(discoverable: event.next.discoverable);
+        }
+      });
     },
     handler: (ref, task) async {
       switch (task.data) {
@@ -419,6 +474,7 @@ Future<void> setupHttpServerIsolate(
                   verifyChecksums: startTask.verifyChecksums,
                   web: startTask.web,
                   showToken: startTask.showToken,
+                  discoverable: syncState.discoverable,
                 );
           } catch (e) {
             // Starting failed (e.g. the port is already in use).
@@ -458,6 +514,12 @@ Future<void> setupHttpServerIsolate(
                   // The Rust server is the authority on the single-session
                   // invariant: a new request means the old session is over.
                   holder.session = null;
+                  // Cannot be spoofed by the payload; see AGENTS.md on
+                  // certFingerprint vs. info.fingerprint.
+                  holder.pendingOffer = _PendingOffer(
+                    senderFingerprint: certFingerprint ?? info.fingerprint,
+                    files: files,
+                  );
                   emit(
                     HttpServerPrepareUploadEvent(
                       sessionId: sessionId,
@@ -567,10 +629,73 @@ Future<void> setupHttpServerIsolate(
           return;
         case HttpServerPrepareUploadDecisionTask decisionTask:
           final config = decisionTask.config;
+          final holder = ref.read(_receiveSessionProvider);
+          final offer = holder.pendingOffer;
+          holder.pendingOffer = null;
+
           // An empty fileNameMap accepts nothing: the Rust server responds
           // with 204 and creates no session.
-          ref.read(_receiveSessionProvider).session = config == null || config.fileNameMap.isEmpty ? null : _ReceiveSession(config);
-          await ref.read(httpServerProvider).respondPrepareUpload(acceptedFileIds: config?.fileNameMap.keys.toList());
+          if (config == null || config.fileNameMap.isEmpty) {
+            holder.session = null;
+            await ref.read(httpServerProvider).respondPrepareUpload(acceptedFiles: null);
+            return;
+          }
+
+          final session = _ReceiveSession(config);
+          holder.session = session;
+
+          // For each accepted file eligible for staged, resumable saving
+          // (i.e. not gallery-bound and not an Android SAF destination),
+          // look for a previous, interrupted attempt at the same content --
+          // possibly from before this app was last killed or restarted --
+          // and, if found, offer to resume it to the sender.
+          const store = PartialTransferStore();
+          if (!_didCleanupStaleTransfers) {
+            // Once per isolate lifetime is plenty: this only prunes entries
+            // that have sat untouched for days (see [partialTransferMaxAge]),
+            // not something that needs to run on every request. Errors are
+            // logged, not fatal: a failed cleanup just leaves the stale
+            // entries for next time.
+            _didCleanupStaleTransfers = true;
+            unawaited(
+              store
+                  .cleanupStale(config.destinationDirectory)
+                  .catchError((e, st) => _logger.warning('Failed to clean up stale partial transfers', e, st)),
+            );
+          }
+          final resumeOffers = <String, int>{};
+          for (final fileId in config.fileNameMap.keys) {
+            final file = offer?.files[fileId];
+            if (file == null || offer == null || config.androidSdkInt != null) {
+              // No offered-file metadata to match against, or on Android
+              // (SAF may be involved; keep today's non-resumable behavior
+              // there rather than assume a plain path).
+              resumeOffers[fileId] = 0;
+              continue;
+            }
+            if (_shouldSaveToGallery(file, config.saveToGallery)) {
+              resumeOffers[fileId] = 0;
+              continue;
+            }
+
+            final identity = PartialFileIdentity(
+              senderFingerprint: offer.senderFingerprint,
+              relativeName: file.fileName,
+              size: file.size.toInt(),
+              modifiedEpochMs: DateTime.tryParse(file.metadata?.modified ?? '')?.millisecondsSinceEpoch,
+            );
+            session.identities[fileId] = identity;
+
+            final resumeOffset = await store.findResumeOffset(config.destinationDirectory, identity);
+            resumeOffers[fileId] = resumeOffset ?? 0;
+            if (resumeOffset != null && resumeOffset > 0) {
+              final partPath = await store.preparePartPath(config.destinationDirectory, identity);
+              session.targets[fileId] = FileSaveTarget(path: partPath, fileDescriptor: null, displayPath: partPath);
+              _logger.info('Offering to resume ${file.fileName} from byte $resumeOffset');
+            }
+          }
+
+          await ref.read(httpServerProvider).respondPrepareUpload(acceptedFiles: resumeOffers);
           return;
         case HttpServerCancelSessionTask cancelTask:
           final holder = ref.read(_receiveSessionProvider);
@@ -578,6 +703,12 @@ Future<void> setupHttpServerIsolate(
             holder.session = null;
           }
           await ref.read(httpServerProvider).cancelSession(sessionId: cancelTask.sessionId);
+          return;
+        case HttpServerCancelFileTask cancelFileTask:
+          final session = ref.read(_receiveSessionProvider).session;
+          if (session != null && session.config.sessionId == cancelFileTask.sessionId) {
+            session.cancelledFileIds.add(cancelFileTask.fileId);
+          }
           return;
         case HttpServerPrepareDownloadDecisionTask decisionTask:
           await ref
@@ -610,6 +741,17 @@ Future<void> setupHttpServerIsolate(
   );
 }
 
+/// Whether [file] should be saved to the OS gallery rather than the
+/// destination directory: [saveToGallery] is a session-wide setting, but
+/// still only applies to file types the gallery actually accepts.
+bool _shouldSaveToGallery(FileDto file, bool saveToGallery) {
+  if (!saveToGallery) {
+    return false;
+  }
+  final fileType = file.toDart().fileType;
+  return fileType == FileType.image || fileType == FileType.video;
+}
+
 /// Receives a single file without involving the main isolate:
 /// resolves the save target, lets the Rust server write the file and applies
 /// the post-processing (timestamps, gallery).
@@ -628,7 +770,7 @@ Future<void> _handleFileUpload({
   final desiredName = config.fileNameMap[fileId]!;
   final dartFile = file.toDart();
   final isImage = dartFile.fileType == FileType.image;
-  final shouldSaveToGallery = config.saveToGallery && (isImage || dartFile.fileType == FileType.video);
+  final shouldSaveToGallery = _shouldSaveToGallery(file, config.saveToGallery);
 
   void emitFailed(Object e) {
     emit(
@@ -642,6 +784,17 @@ Future<void> _handleFileUpload({
     );
   }
 
+  if (session.cancelledFileIds.remove(fileId)) {
+    _logger.info('Skipping ${dartFile.fileName}: cancelled by the receiver before it started');
+    try {
+      await ref.read(httpServerProvider).failFileUpload(sessionId: sessionId, fileId: fileId);
+    } catch (e) {
+      _logger.warning('Could not fail the cancelled file upload', e);
+    }
+    emitFailed('Cancelled by receiver');
+    return;
+  }
+
   _logger.info('Saving ${dartFile.fileName}');
 
   final FileSaveTarget target;
@@ -649,17 +802,28 @@ Future<void> _handleFileUpload({
     // A previous attempt at this file already picked a destination, which this
     // attempt overwrites instead of creating a numbered version.
     final previous = session.targets[fileId];
-    target = previous != null
-        ? await reopenFileSaveTarget(previous)
-        : await prepareFileSaveTarget(
-            destinationDirectory: config.destinationDirectory,
-            cacheDirectory: config.cacheDirectory,
-            fileName: desiredName,
-            saveToGallery: shouldSaveToGallery,
-            isImage: isImage,
-            createdDirectories: session.createdDirectories,
-            androidSdkInt: config.androidSdkInt,
-          );
+    final identity = session.identities[fileId];
+    if (previous != null) {
+      target = await reopenFileSaveTarget(previous);
+    } else if (identity != null) {
+      // Route through the staging area (not gallery-bound, not an Android
+      // SAF destination -- see the decision handler) so this file can be
+      // found and resumed by a later attempt, and so a half-received file
+      // never sits at its real destination name.
+      const store = PartialTransferStore();
+      final partPath = await store.preparePartPath(config.destinationDirectory, identity);
+      target = FileSaveTarget(path: partPath, fileDescriptor: null, displayPath: partPath);
+    } else {
+      target = await prepareFileSaveTarget(
+        destinationDirectory: config.destinationDirectory,
+        cacheDirectory: config.cacheDirectory,
+        fileName: desiredName,
+        saveToGallery: shouldSaveToGallery,
+        isImage: isImage,
+        createdDirectories: session.createdDirectories,
+        androidSdkInt: config.androidSdkInt,
+      );
+    }
     session.targets[fileId] = target;
   } catch (e, st) {
     _logger.severe('Failed to prepare save target', e, st);
@@ -707,12 +871,23 @@ Future<void> _handleFileUpload({
   try {
     String? filePath;
     bool savedToGallery = false;
+    final identity = session.identities[fileId];
     if (shouldSaveToGallery) {
       (savedToGallery, filePath) = await saveCachedFileToGallery(
         cachedPath: target.displayPath,
         destinationDirectory: config.destinationDirectory,
         fileName: desiredName,
         isImage: isImage,
+        createdDirectories: session.createdDirectories,
+      );
+    } else if (identity != null) {
+      // The file is now fully received and checksum-verified (or checksum
+      // verification is disabled): move it out of staging to its real name.
+      const store = PartialTransferStore();
+      filePath = await store.promote(
+        destinationDirectory: config.destinationDirectory,
+        identity: identity,
+        saveAsName: desiredName,
         createdDirectories: session.createdDirectories,
       );
     } else {

@@ -127,6 +127,15 @@ abstract class RsDiscovery implements RustOpaqueInterface {
   /// returns immediately.
   Future<void> scanSubnet({required String interfaceIp, required int port, required ProtocolType protocol});
 
+  /// Sets whether this device announces itself to the network. On by
+  /// default.
+  ///
+  /// Turned off when device visibility is "Hidden": [RsDiscovery::announce]
+  /// (including the one implied by [RsDiscovery::discover_staged]) then
+  /// becomes a no-op, so this device sends no announcement, while it can
+  /// still discover and send to others.
+  Future<void> setAnnouncing({required bool announcing});
+
   /// Sets whether announcements of other devices are answered with a
   /// register request (the answer is what makes the announcing device enter
   /// the store). On by default.

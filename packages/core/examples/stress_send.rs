@@ -108,6 +108,7 @@ async fn main() -> anyhow::Result<()> {
                 &response.session_id,
                 &id,
                 token,
+                0,
                 localsend::reqwest::Body::from(bytes),
                 CancellationToken::new(),
             )

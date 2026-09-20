@@ -56,6 +56,10 @@ pub(crate) async fn register(
     state: AppState,
     client_info: RequestClientInfo,
 ) -> Result<JsonResponse<RegisterResponseDto>, AppError> {
+    if !state.discoverable.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err(AppError::Status(StatusCode::NOT_FOUND));
+    }
+
     let payload = body.collect_to_json::<RegisterDto>().await?;
 
     let info = state.info.lock().await.clone();

@@ -67,9 +67,9 @@ async fn start_test_server_with_verification(
                         files, decision_tx, ..
                     } => {
                         let decision = match accept {
-                            true => {
-                                PrepareUploadDecisionV2::Accept(files.keys().cloned().collect())
-                            }
+                            true => PrepareUploadDecisionV2::Accept(
+                                files.keys().map(|id| (id.clone(), 0)).collect(),
+                            ),
                             false => PrepareUploadDecisionV2::Decline,
                         };
                         let _ = decision_tx.send(decision);
@@ -143,6 +143,7 @@ async fn start_test_server_with_verification(
             event_tx,
         }),
         WebConfig::default(),
+        true,
         stop_rx,
     )
     .await
@@ -199,6 +200,21 @@ async fn upload_bytes(
     token: &str,
     bytes: &[u8],
 ) -> Result<(), ClientError> {
+    upload_bytes_from(client, port, session_id, file_id, token, bytes, 0).await
+}
+
+/// Like [upload_bytes], but claims to already have delivered `resume_offset`
+/// bytes of the file in a previous attempt: only `bytes` itself is sent (the
+/// caller passes just the remaining tail), with `?offset=` set accordingly.
+async fn upload_bytes_from(
+    client: &LsHttpClientV2,
+    port: u16,
+    session_id: &str,
+    file_id: &str,
+    token: &str,
+    bytes: &[u8],
+    resume_offset: u64,
+) -> Result<(), ClientError> {
     let (tx, rx) = mpsc::channel::<Bytes>(4);
     let chunks: Vec<Vec<u8>> = bytes.chunks(1024).map(|chunk| chunk.to_vec()).collect();
     let sent = Arc::new(AtomicU64::new(0));
@@ -227,6 +243,7 @@ async fn upload_bytes(
             session_id,
             file_id,
             token,
+            resume_offset,
             body,
             CancellationToken::new(),
         )
@@ -976,6 +993,7 @@ async fn test_prepare_upload_aborted_by_sender_disconnect() {
             event_tx,
         }),
         WebConfig::default(),
+        true,
         stop_rx,
     )
     .await
@@ -1078,6 +1096,7 @@ async fn test_prepare_upload_cancelled_by_session_less_cancel() {
             event_tx,
         }),
         WebConfig::default(),
+        true,
         stop_rx,
     )
     .await
@@ -1213,6 +1232,7 @@ async fn test_prepare_upload_aborted_by_sender_disconnect_tls() {
             event_tx,
         }),
         WebConfig::default(),
+        true,
         stop_rx,
     )
     .await
@@ -1393,4 +1413,139 @@ async fn test_pin_too_many_attempts() {
         )
         .await;
     assert_status(result, 429);
+}
+
+/// A dropped connection mid-transfer, resumed with `?offset=` from where it
+/// left off, ends up byte-identical and checksum-correct to a full upload --
+/// the pre-hash of the already-written bytes on disk plus the newly streamed
+/// tail must cover the whole file, not just the resumed portion.
+#[tokio::test]
+async fn test_upload_resume_after_dropped_connection() {
+    let save_dir = std::env::temp_dir().join(format!("localsend-test-{}", uuid::Uuid::new_v4()));
+    tokio::fs::create_dir_all(&save_dir).await.unwrap();
+
+    let server = start_test_server(None, true, Some(save_dir.clone())).await;
+    let client = LsHttpClientV2::try_new_without_cert().unwrap();
+
+    // Large enough to span several 1024-byte transport chunks on both sides
+    // of the split, and to exercise the resumed write path's own internal
+    // 512 KiB buffer more than once.
+    let bytes: Vec<u8> = (0..2_000_000u32).map(|i| (i % 251) as u8).collect();
+    let split = 700_003usize; // deliberately not aligned to any buffer size
+    let mut file = file_dto("file-a", "a.bin", bytes.len() as u64);
+    file.sha256 = Some(sha256_hex(&bytes));
+
+    let response = client
+        .prepare_upload(
+            ProtocolType::Http,
+            "127.0.0.1",
+            server.port,
+            None,
+            prepare_upload_request(&[file]),
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap()
+        .response
+        .unwrap();
+    let token = &response.files["file-a"];
+
+    // First attempt: the sender only manages to deliver the first `split`
+    // bytes before the connection drops (simulated by simply not sending the
+    // rest -- the server sees the stream end early and the byte count falls
+    // short of the declared file size).
+    let result = upload_bytes(
+        &client,
+        server.port,
+        &response.session_id,
+        "file-a",
+        token,
+        &bytes[..split],
+    )
+    .await;
+    assert_status(result, 500);
+
+    // The partial file is left on disk with exactly the bytes received so far
+    // -- this is what a resuming sender's claimed offset is checked against.
+    assert_eq!(
+        tokio::fs::read(save_dir.join("file-a")).await.unwrap().len(),
+        split
+    );
+
+    // Second attempt: resumes from `split`, sending only the remaining tail.
+    // The same token still works because a plain failure (not just a
+    // checksum mismatch) now resets the file to Pending, up to the attempt
+    // limit -- see `finalize_file` in `server/v2.rs`.
+    upload_bytes_from(
+        &client,
+        server.port,
+        &response.session_id,
+        "file-a",
+        token,
+        &bytes[split..],
+        split as u64,
+    )
+    .await
+    .unwrap();
+
+    let saved = tokio::fs::read(save_dir.join("file-a")).await.unwrap();
+    assert_eq!(saved, bytes, "resumed file content must equal the original");
+
+    tokio::fs::remove_dir_all(&save_dir).await.unwrap();
+}
+
+/// A resume offset that does not match what is actually on disk (stale
+/// state, a different sender, or a forged claim) must never be trusted: the
+/// receiver falls back to a fresh, from-scratch write instead of appending
+/// at the wrong position or skipping the hash of bytes that were never
+/// actually verified.
+#[tokio::test]
+async fn test_upload_resume_offset_mismatch_falls_back_to_fresh_write() {
+    let save_dir = std::env::temp_dir().join(format!("localsend-test-{}", uuid::Uuid::new_v4()));
+    tokio::fs::create_dir_all(&save_dir).await.unwrap();
+
+    let server = start_test_server(None, true, Some(save_dir.clone())).await;
+    let client = LsHttpClientV2::try_new_without_cert().unwrap();
+
+    let bytes = b"the quick brown fox jumps over the lazy dog".to_vec();
+    let mut file = file_dto("file-a", "a.bin", bytes.len() as u64);
+    file.sha256 = Some(sha256_hex(&bytes));
+
+    let response = client
+        .prepare_upload(
+            ProtocolType::Http,
+            "127.0.0.1",
+            server.port,
+            None,
+            prepare_upload_request(&[file]),
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap()
+        .response
+        .unwrap();
+    let token = &response.files["file-a"];
+
+    // Nothing has ever been written for this file, so an offer to "resume"
+    // from byte 10 does not match reality (no file exists at all yet).
+    // The receiver must ignore the claim and still expect -- and correctly
+    // save and verify -- the complete file from the sender.
+    upload_bytes_from(
+        &client,
+        server.port,
+        &response.session_id,
+        "file-a",
+        token,
+        &bytes,
+        10,
+    )
+    .await
+    .unwrap();
+
+    let saved = tokio::fs::read(save_dir.join("file-a")).await.unwrap();
+    assert_eq!(saved, bytes);
+
+    tokio::fs::remove_dir_all(&save_dir).await.unwrap();
 }

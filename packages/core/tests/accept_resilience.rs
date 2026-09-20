@@ -85,6 +85,7 @@ async fn server_survives_descriptor_exhaustion() {
             event_tx,
         }),
         WebConfig::default(),
+        true,
         stop_rx,
     )
     .await

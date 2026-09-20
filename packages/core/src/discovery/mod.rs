@@ -117,6 +117,10 @@ struct DiscoveryState {
     /// [`DiscoveryHandle::set_answer_announcements`].
     answering: AtomicBool,
 
+    /// Whether this device announces itself, see
+    /// [`DiscoveryHandle::set_announcing`].
+    announcing: AtomicBool,
+
     /// The interface addresses a subnet scan is currently running for.
     scanning: std::sync::Mutex<HashSet<Ipv4Addr>>,
 
@@ -227,9 +231,13 @@ impl DiscoveryHandle {
     /// themselves. Feed them back via [`DiscoveryHandle::add_device`].
     ///
     /// Returns once the whole announcement burst has been sent, which takes a
-    /// few seconds, or immediately once discovery has been stopped or
-    /// multicast is unavailable.
+    /// few seconds, or immediately once discovery has been stopped, multicast
+    /// is unavailable, or [`DiscoveryHandle::set_announcing`] has turned
+    /// announcing off (e.g. the device is set to "Hidden").
     pub async fn announce(&self) {
+        if !self.state.announcing.load(Ordering::Relaxed) {
+            return;
+        }
         if let Ok(multicast) = &self.multicast {
             multicast.announce().await;
         }
@@ -388,6 +396,18 @@ impl DiscoveryHandle {
         self.state.answering.store(answer, Ordering::Relaxed);
     }
 
+    /// Sets whether this device announces itself to the network. On by
+    /// default.
+    ///
+    /// An application whose visibility is set to "hidden" turns this off:
+    /// the device must not be discoverable, but it can still discover and
+    /// send to others (see [`DiscoveryHandle::discover`],
+    /// [`DiscoveryHandle::scan_subnet`]). This only silences the announce
+    /// burst; already-known channels (e.g. favorites) are unaffected.
+    pub fn set_announcing(&self, announcing: bool) {
+        self.state.announcing.store(announcing, Ordering::Relaxed);
+    }
+
     /// Puts a device confirmed outside of discovery into the store, e.g. one
     /// that answered an announcement by registering with this device's HTTP
     /// server. The confirmation is emitted as `Discovered` or `Updated`;
@@ -463,6 +483,7 @@ pub async fn start(config: DiscoveryConfig, stop_rx: oneshot::Receiver<()>) -> D
         store: DeviceStore::new(),
         event_tx: config.event_tx,
         answering: AtomicBool::new(true),
+        announcing: AtomicBool::new(true),
         scanning: std::sync::Mutex::new(HashSet::new()),
         confirmations: AtomicU64::new(0),
     });

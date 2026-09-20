@@ -71,4 +71,5 @@ pub struct _PrepareUploadRequestDto {
 pub struct _PrepareUploadResponseDto {
     pub session_id: String,
     pub files: HashMap<String, String>,
+    pub resume_offsets: HashMap<String, u64>,
 }

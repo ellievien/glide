@@ -1601,6 +1601,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
 
 [[package]]
+name = "glide-cli"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "clap",
+ "crossterm",
+ "dirs",
+ "futures-util",
+ "gethostname",
+ "localsend",
+ "mime_guess",
+ "pem 4.0.0",
+ "qrcode",
+ "ratatui",
+ "ratatui-explorer",
+ "rcgen 0.14.8",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "toml",
+ "unicode-width",
+ "uuid",
+ "walkdir",
+ "winresource",
+]
+
+[[package]]
 name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2216,36 +2246,6 @@ dependencies = [
  "uuid",
  "webrtc",
  "x509-parser 0.18.1",
-]
-
-[[package]]
-name = "localsend-cli"
-version = "1.18.2"
-dependencies = [
- "anyhow",
- "bytes",
- "clap",
- "crossterm",
- "dirs",
- "futures-util",
- "gethostname",
- "localsend",
- "mime_guess",
- "pem 4.0.0",
- "qrcode",
- "ratatui",
- "ratatui-explorer",
- "rcgen 0.14.8",
- "serde",
- "serde_json",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "toml",
- "unicode-width",
- "uuid",
- "walkdir",
- "winresource",
 ]
 
 [[package]]

@@ -35,17 +35,50 @@ impl FileContent {
     /// [`FileContent::Fd`], a background task reads the file and forwards the
     /// chunks; the channel is closed on EOF or on an I/O error.
     pub fn into_receiver(self) -> mpsc::Receiver<Bytes> {
+        self.into_receiver_from(0)
+    }
+
+    /// Like [`FileContent::into_receiver`], but skips the first `skip` bytes
+    /// of the source before the first chunk is emitted -- for resuming an
+    /// upload whose earlier bytes the receiver has already confirmed.
+    ///
+    /// Only [`FileContent::Path`] and [`FileContent::Fd`] can skip ahead (a
+    /// seek on the underlying file); for [`FileContent::Stream`] the
+    /// application already controls what the stream contains, so a nonzero
+    /// `skip` is ignored there (logged, not silently dropped).
+    pub fn into_receiver_from(self, skip: u64) -> mpsc::Receiver<Bytes> {
         match self {
             FileContent::Stream(rx) => {
+                if skip > 0 {
+                    tracing::warn!(
+                        "Ignoring resume skip of {skip} bytes for a FileContent::Stream; \
+                         the application must provide an already-offset stream itself"
+                    );
+                }
                 tracing::info!("Reading file content via byte stream from application");
                 rx
             }
             FileContent::Path(path) => {
-                tracing::info!("Reading file content from path: {}", path.display());
+                tracing::info!(
+                    "Reading file content from path: {} (skipping {skip} bytes)",
+                    path.display()
+                );
                 let (tx, rx) = mpsc::channel(FILE_CHANNEL_CAPACITY);
                 tokio::spawn(async move {
+                    use tokio::io::{AsyncSeekExt, SeekFrom};
                     match tokio::fs::File::open(&path).await {
-                        Ok(file) => read_file_into_sender(file, tx).await,
+                        Ok(mut file) => {
+                            if skip > 0 {
+                                if let Err(e) = file.seek(SeekFrom::Start(skip)).await {
+                                    tracing::error!(
+                                        "Failed to seek {} to resume offset {skip}: {e}",
+                                        path.display()
+                                    );
+                                    return;
+                                }
+                            }
+                            read_file_into_sender(file, tx).await
+                        }
                         Err(e) => {
                             tracing::error!("Failed to open {}: {e}", path.display());
                         }
@@ -57,13 +90,22 @@ impl FileContent {
             FileContent::Fd(fd) => {
                 use std::os::fd::FromRawFd;
 
-                tracing::info!("Reading file content from file descriptor: {fd}");
+                tracing::info!("Reading file content from file descriptor: {fd} (skipping {skip} bytes)");
                 let (tx, rx) = mpsc::channel(FILE_CHANNEL_CAPACITY);
                 // SAFETY: the descriptor is owned by this transfer; wrapping it in
                 // a File transfers that ownership so it is closed once reading finishes.
                 let std_file = unsafe { std::fs::File::from_raw_fd(fd) };
-                let file = tokio::fs::File::from_std(std_file);
-                tokio::spawn(read_file_into_sender(file, tx));
+                let mut file = tokio::fs::File::from_std(std_file);
+                tokio::spawn(async move {
+                    use tokio::io::{AsyncSeekExt, SeekFrom};
+                    if skip > 0 {
+                        if let Err(e) = file.seek(SeekFrom::Start(skip)).await {
+                            tracing::error!("Failed to seek fd {fd} to resume offset {skip}: {e}");
+                            return;
+                        }
+                    }
+                    read_file_into_sender(file, tx).await
+                });
                 rx
             }
         }

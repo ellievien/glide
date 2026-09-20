@@ -58,6 +58,14 @@ abstract class RsHttpClient implements RustOpaqueInterface {
 
   /// Uploads a single file, emitting [RsUploadEvent]s on [sink].
   ///
+  /// `resume_offset` is nonzero when the application is resuming a
+  /// previous, partially delivered attempt at this file: `content_length`
+  /// stays the *full* file size, but `binary`/`path`/`file_descriptor` must
+  /// then only provide the bytes from `resume_offset` onward (for `path`,
+  /// this function itself seeks past `resume_offset`; a `binary` stream or
+  /// `file_descriptor` must already be positioned there by the caller).
+  /// 0 behaves exactly like before: the whole file, from scratch.
+  ///
   /// Failures are emitted as [RsUploadEvent::Failed] instead of being
   /// returned: flutter_rust_bridge discards the returned `Result` of
   /// functions taking a [StreamSink], so a returned error would become an
@@ -70,6 +78,7 @@ abstract class RsHttpClient implements RustOpaqueInterface {
     required String sessionId,
     required String fileId,
     required String token,
+    required BigInt resumeOffset,
     Dart2RustStreamReceiver? binary,
     String? path,
     int? fileDescriptor,
@@ -139,15 +148,32 @@ sealed class RsHttpClientError with _$RsHttpClientError implements FrbException 
   const factory RsHttpClientError.other(
     String field0,
   ) = RsHttpClientError_Other;
+
+  /// The upload was aborted via its [RsCancellationToken] -- either a
+  /// whole-task cancel or a deliberate pause of this one file, never a
+  /// network or server error. Callers must not retry on this variant the
+  /// way they retry [RsHttpClientError::Reqwest]/[RsHttpClientError::Io]:
+  /// doing so would silently defeat the pause.
+  const factory RsHttpClientError.cancelled() = RsHttpClientError_Cancelled;
 }
 
 @freezed
 sealed class RsUploadEvent with _$RsUploadEvent {
   const RsUploadEvent._();
 
-  /// The upload progress as a fraction (0.0 to 1.0). Throttled.
+  /// The upload progress as a fraction (0.0 to 1.0), and the number of
+  /// bytes of the file handed to the outgoing stream so far (counted from
+  /// `resume_offset`, i.e. covering the whole file, not just what this
+  /// attempt streamed). Throttled, and only a claim about what this side
+  /// tried to send -- not a guarantee of what the receiver durably wrote,
+  /// since bytes can still be in flight or buffered on either end when a
+  /// connection drops. A retry that resumes from `sent_bytes` is only ever
+  /// honored if it exactly matches what the receiver actually has on disk
+  /// (see `save::save_req_to_target`); any mismatch safely falls back to a
+  /// fresh, from-scratch write rather than guessing.
   const factory RsUploadEvent.progress({
     required double progress,
+    required BigInt sentBytes,
   }) = RsUploadEvent_Progress;
 
   /// The upload failed. Always the last event of the stream.

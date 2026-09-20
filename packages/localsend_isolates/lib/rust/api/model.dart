@@ -87,19 +87,25 @@ class PrepareUploadRequestDto {
 class PrepareUploadResponseDto {
   final String sessionId;
   final Map<String, String> files;
+  final Map<String, BigInt> resumeOffsets;
 
   const PrepareUploadResponseDto({
     required this.sessionId,
     required this.files,
+    required this.resumeOffsets,
   });
 
   @override
-  int get hashCode => sessionId.hashCode ^ files.hashCode;
+  int get hashCode => sessionId.hashCode ^ files.hashCode ^ resumeOffsets.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is PrepareUploadResponseDto && runtimeType == other.runtimeType && sessionId == other.sessionId && files == other.files;
+      other is PrepareUploadResponseDto &&
+          runtimeType == other.runtimeType &&
+          sessionId == other.sessionId &&
+          files == other.files &&
+          resumeOffsets == other.resumeOffsets;
 }
 
 enum ProtocolType {

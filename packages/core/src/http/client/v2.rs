@@ -221,6 +221,10 @@ impl LsHttpClientV2 {
     /// * `session_id` - Session ID from prepare_upload
     /// * `file_id` - File ID to upload
     /// * `token` - File-specific token from prepare_upload
+    /// * `resume_offset` - Bytes of this file already confirmed received in a
+    ///   previous attempt; `body` must then carry only the remaining bytes.
+    ///   0 for a normal, from-scratch upload (a stock LocalSend receiver
+    ///   ignores this parameter entirely and always expects the full file).
     /// * `body` - The streaming request body carrying the file content
     /// * `cancel` - Cancellation token; cancelling it aborts the upload with [`ClientError::Cancelled`]
     ///
@@ -230,6 +234,7 @@ impl LsHttpClientV2 {
     /// * 409 - Blocked by another session
     /// * 422 - Checksum mismatch
     /// * 500 - Unknown error
+    #[allow(clippy::too_many_arguments)]
     pub async fn upload(
         &self,
         protocol: ProtocolType,
@@ -239,20 +244,26 @@ impl LsHttpClientV2 {
         session_id: &str,
         file_id: &str,
         token: &str,
+        resume_offset: u64,
         body: reqwest::Body,
         cancel: CancellationToken,
     ) -> Result<(), ClientError> {
+        let offset_str = resume_offset.to_string();
+        let mut params = vec![
+            ("sessionId", session_id),
+            ("fileId", file_id),
+            ("token", token),
+        ];
+        if resume_offset > 0 {
+            params.push(("offset", offset_str.as_str()));
+        }
         let url = TargetUrl {
             version: ApiVersion::V2,
             protocol: protocol.as_str(),
             host: ip.to_string(),
             port,
             path: "/upload",
-            params: &[
-                ("sessionId", session_id),
-                ("fileId", file_id),
-                ("token", token),
-            ],
+            params: &params,
         }
         .to_string();
 

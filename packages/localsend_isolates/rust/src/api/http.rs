@@ -8,7 +8,6 @@ pub use localsend::http::dto::{
     RegisterDto, RegisterResponseDto,
 };
 use localsend::model::discovery::ProtocolType;
-use localsend::reqwest;
 use localsend::util::error::ErrorChain;
 
 pub struct RsHttpClient {
@@ -90,10 +89,19 @@ impl RsHttpClient {
 
     /// Uploads a single file, emitting [RsUploadEvent]s on [sink].
     ///
+    /// `resume_offset` is nonzero when the application is resuming a
+    /// previous, partially delivered attempt at this file: `content_length`
+    /// stays the *full* file size, but `binary`/`path`/`file_descriptor` must
+    /// then only provide the bytes from `resume_offset` onward (for `path`,
+    /// this function itself seeks past `resume_offset`; a `binary` stream or
+    /// `file_descriptor` must already be positioned there by the caller).
+    /// 0 behaves exactly like before: the whole file, from scratch.
+    ///
     /// Failures are emitted as [RsUploadEvent::Failed] instead of being
     /// returned: flutter_rust_bridge discards the returned `Result` of
     /// functions taking a [StreamSink], so a returned error would become an
     /// uncaught async error killing the calling isolate.
+    #[allow(clippy::too_many_arguments)]
     pub async fn upload(
         &self,
         sink: StreamSink<RsUploadEvent>,
@@ -104,6 +112,7 @@ impl RsHttpClient {
         session_id: &str,
         file_id: &str,
         token: &str,
+        resume_offset: u64,
         binary: Option<stream::Dart2RustStreamReceiver>,
         path: Option<String>,
         file_descriptor: Option<i32>,
@@ -114,7 +123,7 @@ impl RsHttpClient {
             let content = resolve_file_content(binary, path, file_descriptor)?;
             let last_emit = std::cell::Cell::new(None::<std::time::Instant>);
             let progress_sink = sink.clone();
-            let progress = move |sent| {
+            let progress = move |sent: u64| {
                 let now = std::time::Instant::now();
                 let is_final = sent >= content_length;
                 if !is_final {
@@ -130,7 +139,10 @@ impl RsHttpClient {
                 } else {
                     (sent as f64 / content_length as f64).min(1.0)
                 };
-                let _ = progress_sink.add(RsUploadEvent::Progress { progress });
+                let _ = progress_sink.add(RsUploadEvent::Progress {
+                    progress,
+                    sent_bytes: sent,
+                });
             };
 
             self.inner
@@ -142,6 +154,7 @@ impl RsHttpClient {
                     session_id,
                     file_id,
                     token,
+                    resume_offset,
                     content,
                     progress,
                     cancel_token.inner.clone(),
@@ -206,8 +219,17 @@ fn resolve_file_content(
 /// An event emitted while a file is being uploaded by [RsHttpClient::upload].
 #[derive(Clone)]
 pub enum RsUploadEvent {
-    /// The upload progress as a fraction (0.0 to 1.0). Throttled.
-    Progress { progress: f64 },
+    /// The upload progress as a fraction (0.0 to 1.0), and the number of
+    /// bytes of the file handed to the outgoing stream so far (counted from
+    /// `resume_offset`, i.e. covering the whole file, not just what this
+    /// attempt streamed). Throttled, and only a claim about what this side
+    /// tried to send -- not a guarantee of what the receiver durably wrote,
+    /// since bytes can still be in flight or buffered on either end when a
+    /// connection drops. A retry that resumes from `sent_bytes` is only ever
+    /// honored if it exactly matches what the receiver actually has on disk
+    /// (see `save::save_req_to_target`); any mismatch safely falls back to a
+    /// fresh, from-scratch write rather than guessing.
+    Progress { progress: f64, sent_bytes: u64 },
 
     /// The upload failed. Always the last event of the stream.
     Failed { error: RsHttpClientError },
@@ -223,6 +245,12 @@ pub enum RsHttpClientError {
     Json(String),
     Io(String),
     Other(String),
+    /// The upload was aborted via its [RsCancellationToken] -- either a
+    /// whole-task cancel or a deliberate pause of this one file, never a
+    /// network or server error. Callers must not retry on this variant the
+    /// way they retry [RsHttpClientError::Reqwest]/[RsHttpClientError::Io]:
+    /// doing so would silently defeat the pause.
+    Cancelled,
 }
 
 impl From<ClientError> for RsHttpClientError {
@@ -236,7 +264,7 @@ impl From<ClientError> for RsHttpClientError {
             ClientError::Json(e) => RsHttpClientError::Json(e.to_string()),
             ClientError::Io(e) => RsHttpClientError::Io(e.to_string()),
             ClientError::Other(e) => RsHttpClientError::Other(e.to_string()),
-            ClientError::Cancelled => RsHttpClientError::Other("Upload cancelled".to_string()),
+            ClientError::Cancelled => RsHttpClientError::Cancelled,
         }
     }
 }

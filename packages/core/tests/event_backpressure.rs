@@ -67,6 +67,7 @@ async fn start_server_with_stalled_events(
             event_tx,
         }),
         WebConfig::default(),
+        true,
         stop_rx,
     )
     .await
