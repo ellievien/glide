@@ -34,6 +34,7 @@ import 'package:localsend_isolates/model/device.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:refena_flutter/refena_flutter.dart';
 import 'package:routerino/routerino.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 const _maxRadarNodes = 8;
 
@@ -71,12 +72,36 @@ class _GlideHomePageState extends State<GlideHomePage> with Refena {
   void initState() {
     super.initState();
     _lifecycleListener = AppLifecycleListener(onResume: () => unawaited(_rescan()));
+    unawaited(_setWakelock(true));
     ensureRef((ref) async {
       await postInit(context, ref, widget.appStart);
       _ready = true;
       await _rescan();
       _rescanTimer = Timer.periodic(_rescanInterval, (_) => unawaited(_rescan()));
     });
+  }
+
+  /// Keeps the screen on while the radar is open, on mobile.
+  ///
+  /// The receive server only exists while the app is in the foreground: iOS has
+  /// no background mode that can keep a listening socket alive, so a few
+  /// seconds after the screen locks the app is suspended and the server stops
+  /// answering. The other device then still lists this one from an earlier
+  /// discovery but every transfer to it fails to connect.
+  ///
+  /// Holding a wakelock for as long as this page is on screen is what makes
+  /// "leave Glide open and send from the other device" actually work. The
+  /// platform drops it whenever the app is not in the foreground, and
+  /// [dispose] releases it.
+  Future<void> _setWakelock(bool enable) async {
+    if (!Platform.isIOS && !Platform.isAndroid) {
+      return;
+    }
+    try {
+      enable ? await WakelockPlus.enable() : await WakelockPlus.disable();
+    } catch (e) {
+      // Not fatal: the transfer still works while the screen happens to be on.
+    }
   }
 
   /// Re-runs discovery on a timer and whenever the app returns to the
@@ -114,6 +139,7 @@ class _GlideHomePageState extends State<GlideHomePage> with Refena {
   void dispose() {
     _rescanTimer?.cancel();
     _lifecycleListener?.dispose();
+    unawaited(_setWakelock(false));
     super.dispose();
   }
 
