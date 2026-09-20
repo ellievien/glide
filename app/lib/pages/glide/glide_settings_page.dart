@@ -274,8 +274,14 @@ class _TransfersSection extends StatelessWidget {
   }
 }
 
-/// Plain label used where a settings row's text also opens something (here:
+/// Label used where a settings row's text also opens something (here:
 /// History, reachable from Settings per §3.5 "Entry point").
+///
+/// Sitting next to a toggle with the same text style as every other
+/// non-interactive row label left this indistinguishable from plain text --
+/// nothing hinted that it was the only way to reach the history list, so it
+/// went unnoticed. A trailing chevron, matching the "Save to" row above,
+/// signals that this label specifically opens something.
 class GlideTextButtonLike extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
@@ -286,7 +292,14 @@ class GlideTextButtonLike extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      child: Text(label, style: GT.body),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: GT.body),
+          const SizedBox(width: 4),
+          const GlideIcon(GlideIconAsset.chevronRight, size: 12, color: GT.textFaint),
+        ],
+      ),
     );
   }
 }

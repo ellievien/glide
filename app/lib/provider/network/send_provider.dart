@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:glide/model/cross_file.dart';
-import 'package:glide/model/send_mode.dart';
 import 'package:glide/model/state/send/send_session_state.dart';
 import 'package:glide/model/state/send/sending_file.dart';
 import 'package:glide/pages/glide/glide_sending_page.dart';
@@ -878,8 +877,18 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
       _fileTaskId.remove(fileId);
     }
     state = state.removeSession(ref, sessionId);
-    if (sessionState.status == SessionStatus.finished && ref.read(settingsProvider).sendMode == SendMode.single) {
-      // clear selected files
+    if (sessionState.status == SessionStatus.finished) {
+      // Clear the picked file(s) after a fully successful send so the next
+      // tap on a device opens the file picker instead of resending the same
+      // content. This used to be gated on `sendMode == SendMode.single`, but
+      // that setting has no UI anywhere in this app to set it away from
+      // `single` -- `setSendMode` has no caller -- except a value persisted
+      // by a pre-redesign build, where it defaulted to `multiple`. On any
+      // such device the gate was permanently false, so every device tap
+      // re-sent the previous selection forever with no way to fix it from
+      // the UI. There is also no multi-device-selection feature left that
+      // `multiple` mode's "keep the selection to fan out to several
+      // recipients" behavior would still serve.
       ref.redux(selectedSendingFilesProvider).dispatch(ClearSelectionAction());
     }
   }
