@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -37,6 +38,7 @@ import 'package:localsend_isolates/rust/api/server.dart' show SessionEndReasonV2
 import 'package:localsend_isolates/util/rust.dart';
 import 'package:localsend_isolates/util/transfer_notification.dart';
 import 'package:logging/logging.dart';
+import 'package:path/path.dart' as p;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:refena_flutter/refena_flutter.dart';
 import 'package:routerino/routerino.dart';
@@ -48,6 +50,39 @@ final _logger = Logger('ReceiveController');
 /// Handles all server events for receiving files.
 /// The HTTP requests themselves are served by the Rust server which emits
 /// the events handled here.
+/// Returns a destination directory that can actually be written to.
+///
+/// [configured] is an absolute path that was persisted at some earlier point,
+/// and it can stop being valid without the user changing anything: on iOS the
+/// data and app-group container paths carry a UUID that is not stable across
+/// installs, so a stored path can point into a container that no longer
+/// exists. A stale value must not make every incoming file fail -- the sender
+/// only sees an opaque 500 -- so fall back to the platform default whenever
+/// the configured directory cannot be created and written to.
+///
+/// The setting itself is deliberately left alone: on desktop the path may
+/// simply be on a volume that is not mounted right now, and it should start
+/// working again once it is.
+Future<String> _resolveDestinationDirectory(String? configured) async {
+  if (configured == null) {
+    return await getDefaultDestinationDirectory();
+  }
+
+  try {
+    await Directory(configured).create(recursive: true);
+    // Creating the directory is not proof that files can be written into it,
+    // so probe with a real write before committing the whole transfer to it.
+    final probe = File(p.join(configured, '.glide-write-probe'));
+    await probe.writeAsString('');
+    await probe.delete();
+    return configured;
+  } catch (e, st) {
+    final fallback = await getDefaultDestinationDirectory();
+    _logger.warning('Destination $configured is not writable, falling back to $fallback', e, st);
+    return fallback;
+  }
+}
+
 class ReceiveController {
   final ServerUtils server;
 
@@ -78,7 +113,7 @@ class ReceiveController {
     }
 
     final settings = server.ref.read(settingsProvider);
-    final destinationDir = settings.destination ?? await getDefaultDestinationDirectory();
+    final destinationDir = await _resolveDestinationDirectory(settings.destination);
     final cacheDir = await getCacheDirectory();
     final sessionId = event.sessionId;
     final files = {
