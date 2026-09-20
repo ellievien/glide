@@ -1,8 +1,8 @@
 import 'package:collection/collection.dart';
-import 'package:localsend_app/provider/local_ip_provider.dart';
-import 'package:localsend_app/provider/network/server/server_provider.dart';
-import 'package:localsend_app/provider/security_provider.dart';
-import 'package:localsend_app/provider/settings_provider.dart';
+import 'package:glide/provider/local_ip_provider.dart';
+import 'package:glide/provider/network/server/server_provider.dart';
+import 'package:glide/provider/security_provider.dart';
+import 'package:glide/provider/settings_provider.dart';
 import 'package:localsend_isolates/constants.dart';
 import 'package:localsend_isolates/isolate.dart';
 import 'package:localsend_isolates/model/device.dart';

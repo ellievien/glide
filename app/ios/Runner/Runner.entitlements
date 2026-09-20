@@ -4,11 +4,16 @@
 <dict>
 	<key>aps-environment</key>
 	<string>development</string>
-	<key>com.apple.developer.networking.multicast</key>
-	<true/>
+	<!-- com.apple.developer.networking.multicast temporarily removed: Apple
+	     gates this entitlement behind a formal per-team approval request
+	     (https://developer.apple.com/contact/request/networking-multicast/),
+	     which this team has not been granted yet. Without it, local-device
+	     discovery via UDP multicast on iOS is unavailable in this build;
+	     manual "add by IP" pairing and transfers are unaffected. Restore
+	     this key once the request is approved. -->
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.org.localsend.localsendApp</string>
+		<string>group.org.glideapp.glide</string>
 	</array>
 </dict>
 </plist>

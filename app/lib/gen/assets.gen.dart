@@ -11,45 +11,117 @@
 
 import 'package:flutter/widgets.dart';
 
-class $AssetsImgGen {
-  const $AssetsImgGen();
+class $AssetsBrandGen {
+  const $AssetsBrandGen();
 
-  /// File path: assets/img/logo-128.png
-  AssetGenImage get logo128 => const AssetGenImage('assets/img/logo-128.png');
-
-  /// File path: assets/img/logo-256.png
-  AssetGenImage get logo256 => const AssetGenImage('assets/img/logo-256.png');
-
-  /// File path: assets/img/logo-32-black.png
-  AssetGenImage get logo32Black => const AssetGenImage('assets/img/logo-32-black.png');
-
-  /// File path: assets/img/logo-32-white.png
-  AssetGenImage get logo32White => const AssetGenImage('assets/img/logo-32-white.png');
-
-  /// File path: assets/img/logo-32.png
-  AssetGenImage get logo32 => const AssetGenImage('assets/img/logo-32.png');
-
-  /// File path: assets/img/logo-512-white.png
-  AssetGenImage get logo512White => const AssetGenImage('assets/img/logo-512-white.png');
-
-  /// File path: assets/img/logo-512.png
-  AssetGenImage get logo512 => const AssetGenImage('assets/img/logo-512.png');
-
-  /// File path: assets/img/logo.ico
-  String get logo => 'assets/img/logo.ico';
-
-  /// List of all assets
-  List<dynamic> get values => [logo128, logo256, logo32Black, logo32White, logo32, logo512White, logo512, logo];
+  /// Directory path: assets/brand/glide
+  $AssetsBrandGlideGen get glide => const $AssetsBrandGlideGen();
 }
 
-class Assets {
-  const Assets._();
+class $AssetsIconsGen {
+  const $AssetsIconsGen();
 
-  static const String changelog = 'assets/CHANGELOG.md';
-  static const $AssetsImgGen img = $AssetsImgGen();
+  /// Directory path: assets/icons/glide
+  $AssetsIconsGlideGen get glide => const $AssetsIconsGlideGen();
+}
+
+class $AssetsBrandGlideGen {
+  const $AssetsBrandGlideGen();
+
+  /// File path: assets/brand/glide/glide-icon-32.png
+  AssetGenImage get glideIcon32 => const AssetGenImage('assets/brand/glide/glide-icon-32.png');
+
+  /// File path: assets/brand/glide/glide-icon-rounded-1024.png
+  AssetGenImage get glideIconRounded1024 => const AssetGenImage('assets/brand/glide/glide-icon-rounded-1024.png');
+
+  /// File path: assets/brand/glide/glide-logo.svg
+  String get glideLogo => 'assets/brand/glide/glide-logo.svg';
+
+  /// File path: assets/brand/glide/glide-symbol.svg
+  String get glideSymbol => 'assets/brand/glide/glide-symbol.svg';
+
+  /// File path: assets/brand/glide/glide.ico
+  String get glide => 'assets/brand/glide/glide.ico';
 
   /// List of all assets
-  static List<String> get values => [changelog];
+  List<dynamic> get values => [glideIcon32, glideIconRounded1024, glideLogo, glideSymbol, glide];
+}
+
+class $AssetsIconsGlideGen {
+  const $AssetsIconsGlideGen();
+
+  /// File path: assets/icons/glide/arrow-down-left.svg
+  String get arrowDownLeft => 'assets/icons/glide/arrow-down-left.svg';
+
+  /// File path: assets/icons/glide/arrow-right.svg
+  String get arrowRight => 'assets/icons/glide/arrow-right.svg';
+
+  /// File path: assets/icons/glide/arrow-up-right.svg
+  String get arrowUpRight => 'assets/icons/glide/arrow-up-right.svg';
+
+  /// File path: assets/icons/glide/check.svg
+  String get check => 'assets/icons/glide/check.svg';
+
+  /// File path: assets/icons/glide/chevron-left.svg
+  String get chevronLeft => 'assets/icons/glide/chevron-left.svg';
+
+  /// File path: assets/icons/glide/chevron-right.svg
+  String get chevronRight => 'assets/icons/glide/chevron-right.svg';
+
+  /// File path: assets/icons/glide/close.svg
+  String get close => 'assets/icons/glide/close.svg';
+
+  /// File path: assets/icons/glide/desktop.svg
+  String get desktop => 'assets/icons/glide/desktop.svg';
+
+  /// File path: assets/icons/glide/file.svg
+  String get file => 'assets/icons/glide/file.svg';
+
+  /// File path: assets/icons/glide/folder.svg
+  String get folder => 'assets/icons/glide/folder.svg';
+
+  /// File path: assets/icons/glide/laptop.svg
+  String get laptop => 'assets/icons/glide/laptop.svg';
+
+  /// File path: assets/icons/glide/network.svg
+  String get network => 'assets/icons/glide/network.svg';
+
+  /// File path: assets/icons/glide/pencil.svg
+  String get pencil => 'assets/icons/glide/pencil.svg';
+
+  /// File path: assets/icons/glide/phone.svg
+  String get phone => 'assets/icons/glide/phone.svg';
+
+  /// File path: assets/icons/glide/search.svg
+  String get search => 'assets/icons/glide/search.svg';
+
+  /// File path: assets/icons/glide/sliders.svg
+  String get sliders => 'assets/icons/glide/sliders.svg';
+
+  /// List of all assets
+  List<String> get values => [
+    arrowDownLeft,
+    arrowRight,
+    arrowUpRight,
+    check,
+    chevronLeft,
+    chevronRight,
+    close,
+    desktop,
+    file,
+    folder,
+    laptop,
+    network,
+    pencil,
+    phone,
+    search,
+    sliders,
+  ];
+}
+
+abstract final class Assets {
+  static const $AssetsBrandGen brand = $AssetsBrandGen();
+  static const $AssetsIconsGen icons = $AssetsIconsGen();
 }
 
 class AssetGenImage {

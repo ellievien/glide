@@ -1,20 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:localsend_app/model/cross_file.dart';
-import 'package:localsend_app/model/send_mode.dart';
-import 'package:localsend_app/model/state/send/send_session_state.dart';
-import 'package:localsend_app/model/state/send/sending_file.dart';
-import 'package:localsend_app/pages/home_page.dart';
-import 'package:localsend_app/pages/home_page_controller.dart';
-import 'package:localsend_app/pages/progress_page.dart';
-import 'package:localsend_app/pages/send_page.dart';
-import 'package:localsend_app/provider/device_info_provider.dart';
-import 'package:localsend_app/provider/file_transfer_provider.dart';
-import 'package:localsend_app/provider/http_provider.dart';
-import 'package:localsend_app/provider/selection/selected_sending_files_provider.dart';
-import 'package:localsend_app/provider/settings_provider.dart';
-import 'package:localsend_app/widget/dialogs/pin_dialog.dart';
+import 'package:glide/model/cross_file.dart';
+import 'package:glide/model/send_mode.dart';
+import 'package:glide/model/state/send/send_session_state.dart';
+import 'package:glide/model/state/send/sending_file.dart';
+import 'package:glide/pages/glide/glide_sending_page.dart';
+import 'package:glide/provider/device_info_provider.dart';
+import 'package:glide/provider/file_transfer_provider.dart';
+import 'package:glide/provider/http_provider.dart';
+import 'package:glide/provider/selection/selected_sending_files_provider.dart';
+import 'package:glide/provider/settings_provider.dart';
+import 'package:glide/widget/dialogs/pin_dialog.dart';
 import 'package:localsend_isolates/isolate.dart';
 import 'package:localsend_isolates/model/device.dart';
 import 'package:localsend_isolates/model/dto/file_dto.dart';
@@ -58,6 +56,20 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
   /// is no longer waiting for a decision.
   /// Session ID -> Cancel token
   final _prepareUploadCancelTokens = <String, rust_cancel.RsCancellationToken>{};
+
+  /// Resume offers from the receiver's prepare-upload response, kept only
+  /// long enough to be read once when building this session's upload tasks
+  /// (not part of [SendSessionState]: purely a hint for the next upload
+  /// attempt, not state that needs to survive a hot reload or be inspected
+  /// elsewhere). File ID -> bytes the receiver already has for that file.
+  final _resumeOffers = <String, Map<String, int>>{};
+
+  /// Which isolate task is currently uploading a given file, so [pauseFile]
+  /// can target just that one file's cancel token. Populated as files are
+  /// handed to a task in [_sendFiles] and pruned once the task ends -- not
+  /// part of [SendSessionState], purely bookkeeping for [pauseFile].
+  /// File ID -> task ID.
+  final _fileTaskId = <String, int>{};
 
   @override
   Map<String, SendSessionState> init() {
@@ -154,9 +166,11 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
         );
 
     if (!background) {
+      // Glide shows one screen (§3.2) for both the "waiting for accept" and
+      // "sending" states, replacing the legacy SendPage -> ProgressPage handoff.
       // ignore: use_build_context_synchronously, unawaited_futures
       Routerino.context.push(
-        () => SendPage(showAppBar: false, closeSessionOnClose: true, sessionId: sessionId),
+        () => GlideSendingPage(showAppBar: false, closeSessionOnClose: true, sessionId: sessionId),
         transition: RouterinoTransition.fade(),
       );
     }
@@ -365,6 +379,10 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
             remoteSessionId: remoteSessionId,
           ),
         );
+        _resumeOffers[sessionId] = await _validateResumeOffers(
+          offers: response.response!.resumeOffsets,
+          offeredFiles: requestState.files,
+        );
       } catch (e) {
         state = state.updateSession(
           sessionId: sessionId,
@@ -387,10 +405,6 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
       );
 
       if (state[sessionId]?.background == false) {
-        // Pop back to the existing HomePage instead of pushing a new one:
-        // a second HomePage attaches a second PageView to the shared PageController,
-        // and removing routes without animation orphans a hero in flight.
-        ref.redux(homePageControllerProvider).dispatch(ChangeTabAction(HomeTab.send));
         ref.global.dispatch(NavigateAction.popUntilRoot());
       }
 
@@ -412,31 +426,9 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
       statuses: {for (final file in sendingFiles.values) file.file.id: file.token != null ? FileStatus.queue : FileStatus.skipped},
     );
 
-    if (state[sessionId]?.background == false) {
-      final background = ref.read(settingsProvider).sendMode == SendMode.multiple;
-
-      unawaited(
-        // ignore: use_build_context_synchronously
-        Routerino.context
-            .pushAndRemoveUntil(
-              removeUntil: HomePage,
-              transition: RouterinoTransition.fade(),
-              // immediately is not possible: https://github.com/flutter/flutter/issues/121910
-              builder: () => ProgressPage(
-                showAppBar: background,
-                closeSessionOnClose: !background,
-                sessionId: sessionId,
-              ),
-            )
-            .then((_) {
-              if (background) {
-                // The page was popped (e.g. backing out mid-transfer), so the session
-                // runs in background again and is removed silently on success.
-                setBackground(sessionId, true);
-              }
-            }),
-      );
-    }
+    // No page push here: GlideSendingPage (already on screen for this session
+    // since startSession()) watches the whole sendProvider map and reacts to
+    // the waiting -> sending transition on its own.
 
     state = state.updateSession(
       sessionId: sessionId,
@@ -514,11 +506,19 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
     if (state[sessionId]!.status != SessionStatus.sending) {
       _logger.info('Transfer was canceled.');
     } else {
-      final hasError = ref.read(fileTransferProvider).getStatuses(sessionId).any((status) => status == FileStatus.failed);
-      if (!hasError && sessionState.background == true) {
+      final statuses = ref.read(fileTransferProvider).getStatuses(sessionId);
+      final hasError = statuses.any((status) => status == FileStatus.failed);
+      // A paused file is waiting on the user (resume or cancel), not done --
+      // the session must not look "finished" while one is sitting there.
+      final hasPaused = statuses.any((status) => status == FileStatus.paused);
+      if (!hasError && !hasPaused && sessionState.background == true) {
         // close session because everything is fine and it is in background
         closeSession(sessionId);
         _logger.info('Transfer finished and session removed.');
+      } else if (hasPaused) {
+        // stay in `sending`: nothing to report on the session level yet,
+        // the paused file's own status already tells the story
+        _logger.info('Transfer paused.');
       } else {
         // keep session alive when there are errors or currently in foreground
         state = state.updateSession(
@@ -540,7 +540,31 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
 
   final uriContent = UriContent();
 
-  /// Sends a single file. Currently only used to retry a failed file.
+  /// Pauses a file that is currently uploading: the file stops where it is
+  /// (reported as [FileStatus.paused] once the isolate confirms it, via the
+  /// [HttpUploadFilePausedEvent] handled in [_sendFiles]) without touching
+  /// any other file sharing its isolate task. Does nothing if the file is
+  /// not currently being tracked as uploading (e.g. it already finished,
+  /// failed, or was paused a moment ago).
+  void pauseFile({required String sessionId, required SendingFile file}) {
+    final taskId = _fileTaskId[file.file.id];
+    if (taskId == null) {
+      return;
+    }
+    ref
+        .redux(parentIsolateProvider)
+        .dispatch(
+          IsolateHttpUploadCancelFileAction(
+            taskId: taskId,
+            fileId: file.file.id,
+          ),
+        );
+  }
+
+  /// Sends a single file. Used both to retry a failed file and to resume a
+  /// paused one -- either way, a fresh, independent upload task for just
+  /// this file, picking up from [_resumeOffers] if the receiver (or a
+  /// previous attempt within this same session) already has some of it.
   Future<void> sendFile({
     required String sessionId,
     required SendingFile file,
@@ -599,6 +623,7 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
       return;
     }
 
+    final resumeOffers = _resumeOffers[sessionId];
     final uploadFiles = [
       for (final file in files)
         if (file.token != null)
@@ -608,6 +633,7 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
             filePath: file.path,
             fileBytes: file.bytes,
             fileSize: file.file.size,
+            initialResumeOffset: resumeOffers?[file.file.id] ?? 0,
           ),
     ];
 
@@ -636,6 +662,10 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
         ],
       ),
     );
+
+    for (final file in uploadFiles) {
+      _fileTaskId[file.fileId] = taskResult.taskId;
+    }
 
     try {
       await for (final event in taskResult.events) {
@@ -670,6 +700,13 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
               sessionId: sessionId,
               state: (s) => s?.withFileError(event.fileId, event.error),
             );
+          case HttpUploadFilePausedEvent():
+            _logger.info('Paused ${state[sessionId]?.files[event.fileId]?.file.fileName}');
+            ref.notifier(fileTransferProvider).setStatus(sessionId: sessionId, fileId: event.fileId, status: FileStatus.paused);
+            // So a later resume (via sendFile(isRetry: true)) continues from
+            // here instead of the (possibly much older, or absent) offer the
+            // receiver made back at prepare-upload time.
+            (_resumeOffers[sessionId] ??= {})[event.fileId] = event.sentBytes;
         }
       }
     } catch (e, st) {
@@ -703,7 +740,60 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
           sendingTasks: s.sendingTasks?.where((task) => task.taskId != taskResult.taskId).toList(),
         ),
       );
+      _fileTaskId.removeWhere((_, id) => id == taskResult.taskId);
     }
+  }
+
+  /// Filters the receiver's resume offers ([PrepareUploadResponseDto.resumeOffsets])
+  /// down to the ones whose local source file has not visibly changed since
+  /// it was offered in the prepare-upload request: the sender's own half of
+  /// "detect changed source files before resuming", alongside the
+  /// receiver's independent check of what it actually has on disk (see
+  /// `save::save_req_to_target` on the Rust side, which has the final say).
+  ///
+  /// A file this cannot verify (no local path -- e.g. web, or in-memory
+  /// bytes -- or the file is no longer readable) is simply left out: the
+  /// upload then starts from scratch for it, same as if no offer existed.
+  Future<Map<String, int>> _validateResumeOffers({
+    required Map<String, BigInt> offers,
+    required Map<String, SendingFile> offeredFiles,
+  }) async {
+    if (offers.isEmpty) {
+      return {};
+    }
+
+    final validated = <String, int>{};
+    for (final entry in offers.entries) {
+      final path = offeredFiles[entry.key]?.path;
+      final offeredFile = offeredFiles[entry.key]?.file;
+      if (path == null || offeredFile == null) {
+        continue;
+      }
+
+      try {
+        final stat = await File(path).stat();
+        if (stat.size != offeredFile.size) {
+          continue;
+        }
+
+        final offeredModified = DateTime.tryParse(offeredFile.metadata?.lastModified ?? '');
+        if (offeredModified != null) {
+          // A couple of seconds of tolerance absorbs the precision/timezone
+          // formatting differences some platforms introduce when a
+          // timestamp round-trips through a string, without meaningfully
+          // weakening the "did the file actually change" check.
+          final drift = stat.modified.toUtc().difference(offeredModified.toUtc()).abs();
+          if (drift > const Duration(seconds: 2)) {
+            continue;
+          }
+        }
+
+        validated[entry.key] = entry.value.toInt();
+      } catch (e) {
+        // Can't stat the local file (e.g. it was removed); nothing to resume.
+      }
+    }
+    return validated;
   }
 
   /// Closes the send-session and sends a cancel event to the receiver.
@@ -783,6 +873,10 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
     TransferNotification.stop(sessionId);
     _hashCancelTokens.remove(sessionId)?.cancel();
     _prepareUploadCancelTokens.remove(sessionId)?.cancel();
+    _resumeOffers.remove(sessionId);
+    for (final fileId in sessionState.files.keys) {
+      _fileTaskId.remove(fileId);
+    }
     state = state.removeSession(ref, sessionId);
     if (sessionState.status == SessionStatus.finished && ref.read(settingsProvider).sendMode == SendMode.single) {
       // clear selected files
@@ -802,6 +896,8 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
       cancelToken.cancel();
     }
     _prepareUploadCancelTokens.clear();
+    _resumeOffers.clear();
+    _fileTaskId.clear();
     state = {};
     ref.notifier(fileTransferProvider).removeAllSessions();
   }

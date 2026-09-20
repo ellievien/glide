@@ -1,26 +1,45 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:localsend_app/config/init.dart';
-import 'package:localsend_app/config/init_error.dart';
-import 'package:localsend_app/config/theme.dart';
-import 'package:localsend_app/gen/strings.g.dart';
-import 'package:localsend_app/model/persistence/color_mode.dart';
-import 'package:localsend_app/pages/home_page.dart';
-import 'package:localsend_app/provider/local_ip_provider.dart';
-import 'package:localsend_app/provider/network/server/server_provider.dart';
-import 'package:localsend_app/provider/settings_provider.dart';
-import 'package:localsend_app/util/native/platform_check.dart';
-import 'package:localsend_app/util/ui/dynamic_colors.dart';
-import 'package:localsend_app/widget/watcher/life_cycle_watcher.dart';
-import 'package:localsend_app/widget/watcher/shortcut_watcher.dart';
-import 'package:localsend_app/widget/watcher/tray_watcher.dart';
-import 'package:localsend_app/widget/watcher/window_watcher.dart';
+import 'package:glide/config/init.dart';
+import 'package:glide/config/init_error.dart';
+import 'package:glide/config/theme.dart';
+import 'package:glide/gen/strings.g.dart';
+import 'package:glide/model/persistence/color_mode.dart';
+import 'package:glide/pages/glide/glide_home_page.dart';
+import 'package:glide/provider/local_ip_provider.dart';
+import 'package:glide/provider/network/server/server_provider.dart';
+import 'package:glide/provider/settings_provider.dart';
+import 'package:glide/util/native/platform_check.dart';
+import 'package:glide/util/ui/dynamic_colors.dart';
+import 'package:glide/widget/watcher/life_cycle_watcher.dart';
+import 'package:glide/widget/watcher/shortcut_watcher.dart';
+import 'package:glide/widget/watcher/tray_watcher.dart';
+import 'package:glide/widget/watcher/window_watcher.dart';
 import 'package:localsend_isolates/isolate.dart';
 import 'package:refena_flutter/addons.dart';
 import 'package:refena_flutter/refena_flutter.dart';
 import 'package:routerino/routerino.dart';
 
 Future<void> main(List<String> args) async {
+  // GLIDE is a fork of LocalSend (https://github.com/localsend/localsend),
+  // Apache License 2.0. This registers that attribution alongside the
+  // auto-discovered dependency licenses shown on the in-app License
+  // Notices screen (Settings > About).
+  LicenseRegistry.addLicense(() {
+    return Stream<LicenseEntry>.value(
+      const LicenseEntryWithLineBreaks(
+        <String>['glide'],
+        'GLIDE is a fork of LocalSend (https://github.com/localsend/localsend), '
+        'Copyright 2022-2026 Tien Do Nam and the LocalSend contributors, '
+        'licensed under the Apache License, Version 2.0. See the NOTICE file '
+        'in the GLIDE source distribution for details of what has changed. '
+        'GLIDE is an independent project and is not affiliated with or '
+        'endorsed by LocalSend.',
+      ),
+    );
+  });
+
   final RefenaContainer container;
   try {
     container = await preInit(args);
@@ -36,14 +55,14 @@ Future<void> main(List<String> args) async {
     RefenaScope.withContainer(
       container: container,
       child: TranslationProvider(
-        child: const LocalSendApp(),
+        child: const GlideApp(),
       ),
     ),
   );
 }
 
-class LocalSendApp extends StatelessWidget {
-  const LocalSendApp();
+class GlideApp extends StatelessWidget {
+  const GlideApp();
 
   @override
   Widget build(BuildContext context) {
@@ -90,8 +109,7 @@ class LocalSendApp extends StatelessWidget {
               themeMode: colorMode == ColorMode.oled ? ThemeMode.dark : themeMode,
               navigatorKey: context.read(navigationProvider).key,
               home: RouterinoHome(
-                builder: () => const HomePage(
-                  initialTab: HomeTab.receive,
+                builder: () => const GlideHomePage(
                   appStart: true,
                 ),
               ),

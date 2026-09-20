@@ -3,29 +3,31 @@ import 'dart:convert';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:localsend_app/model/state/server/receive_session_state.dart';
-import 'package:localsend_app/model/state/server/receiving_file.dart';
-import 'package:localsend_app/pages/home_page.dart';
-import 'package:localsend_app/pages/home_page_controller.dart';
-import 'package:localsend_app/pages/progress_page.dart';
-import 'package:localsend_app/pages/receive_page.dart';
-import 'package:localsend_app/provider/device_info_provider.dart';
-import 'package:localsend_app/provider/favorites_provider.dart';
-import 'package:localsend_app/provider/file_transfer_provider.dart';
-import 'package:localsend_app/provider/http_provider.dart';
-import 'package:localsend_app/provider/logging/discovery_logs_provider.dart';
-import 'package:localsend_app/provider/network/send_provider.dart';
-import 'package:localsend_app/provider/network/server/server_provider.dart';
-import 'package:localsend_app/provider/network/server/server_utils.dart';
-import 'package:localsend_app/provider/receive_history_provider.dart';
-import 'package:localsend_app/provider/security_provider.dart';
-import 'package:localsend_app/provider/selection/selected_receiving_files_provider.dart';
-import 'package:localsend_app/provider/selection/selected_sending_files_provider.dart';
-import 'package:localsend_app/provider/settings_provider.dart';
-import 'package:localsend_app/util/native/directories.dart';
-import 'package:localsend_app/util/native/platform_check.dart';
-import 'package:localsend_app/util/native/tray_helper.dart';
-import 'package:localsend_app/widget/dialogs/open_file_dialog.dart';
+import 'package:glide/model/persistence/device_visibility.dart';
+import 'package:glide/model/state/server/receive_session_state.dart';
+import 'package:glide/model/state/server/receiving_file.dart';
+import 'package:glide/pages/glide/glide_home_page.dart';
+import 'package:glide/pages/glide/glide_incoming_sheet_page.dart';
+import 'package:glide/pages/glide/glide_sending_page.dart';
+import 'package:glide/pages/receive_page.dart';
+import 'package:glide/provider/device_info_provider.dart';
+import 'package:glide/provider/device_visibility_provider.dart';
+import 'package:glide/provider/favorites_provider.dart';
+import 'package:glide/provider/file_transfer_provider.dart';
+import 'package:glide/provider/http_provider.dart';
+import 'package:glide/provider/logging/discovery_logs_provider.dart';
+import 'package:glide/provider/network/send_provider.dart';
+import 'package:glide/provider/network/server/server_provider.dart';
+import 'package:glide/provider/network/server/server_utils.dart';
+import 'package:glide/provider/receive_history_provider.dart';
+import 'package:glide/provider/security_provider.dart';
+import 'package:glide/provider/selection/selected_receiving_files_provider.dart';
+import 'package:glide/provider/selection/selected_sending_files_provider.dart';
+import 'package:glide/provider/settings_provider.dart';
+import 'package:glide/util/native/directories.dart';
+import 'package:glide/util/native/platform_check.dart';
+import 'package:glide/util/native/tray_helper.dart';
+import 'package:glide/widget/dialogs/open_file_dialog.dart';
 import 'package:localsend_isolates/isolate.dart';
 import 'package:localsend_isolates/model/device.dart';
 import 'package:localsend_isolates/model/file_status.dart';
@@ -126,6 +128,16 @@ class ReceiveController {
           statuses: {for (final file in files.values) file.id: FileStatus.queue},
         );
 
+    // Settings > Visibility ("Contacts only"): silently decline senders that
+    // are not a favorite, without ever showing the incoming-request UI.
+    if (server.ref.read(deviceVisibilityProvider) == DeviceVisibility.contactsOnly) {
+      final isKnownContact = server.ref.read(favoritesProvider).any((e) => e.fingerprint == senderFingerprint);
+      if (!isKnownContact) {
+        declineFileRequest();
+        return;
+      }
+    }
+
     bool quickSave = settings.quickSave && server.getState().session?.message == null;
     final quickSaveFromFavorites = settings.quickSaveFromFavorites && server.getState().session?.message == null;
     if (quickSaveFromFavorites) {
@@ -143,7 +155,7 @@ class ReceiveController {
       // Push before accepting: the permission request in [acceptFileRequest] may block for a while.
       // ignore: use_build_context_synchronously, unawaited_futures
       Routerino.context.pushImmediately(
-        () => ProgressPage(
+        () => GlideSendingPage(
           showAppBar: false,
           closeSessionOnClose: true,
           sessionId: sessionId,
@@ -206,10 +218,12 @@ class ReceiveController {
           final selectedFiles = ref.read(selectedReceivingFilesProvider);
 
           // Push before accepting: the permission request in [acceptFileRequest] may block for a while.
+          // This is only reached when message == null (the message case returns above), so the page
+          // that is being replaced is always GlideIncomingSheetPage (pushed below).
           unawaited(
             Routerino.context.pushAndRemoveUntilImmediately(
-              removeUntil: ReceivePage,
-              builder: () => ProgressPage(
+              removeUntil: GlideIncomingSheetPage,
+              builder: () => GlideSendingPage(
                 showAppBar: false,
                 closeSessionOnClose: true,
                 sessionId: sessionId,
@@ -230,8 +244,14 @@ class ReceiveController {
 
     server.ref.notifier(selectedReceivingFilesProvider).setFiles(files.values.toList());
 
-    // ignore: use_build_context_synchronously, unawaited_futures
-    Routerino.context.push(() => ReceivePage(receiveProvider));
+    if (message != null) {
+      // Text/link sharing is outside the scope of the Glide UI spec; keep the legacy full-screen page.
+      // ignore: use_build_context_synchronously, unawaited_futures
+      Routerino.context.push(() => ReceivePage(receiveProvider));
+    } else {
+      // ignore: use_build_context_synchronously, unawaited_futures
+      Routerino.context.push(() => GlideIncomingSheetPage(receiveProvider));
+    }
   }
 
   /// An accepted file started being uploaded.
@@ -428,7 +448,7 @@ class ReceiveController {
           _logger.info('Closing session');
 
           // ignore: use_build_context_synchronously, discarded_futures
-          Routerino.context.pushRootImmediately(() => const HomePage(initialTab: HomeTab.receive, appStart: false));
+          Routerino.context.pushRootImmediately(() => const GlideHomePage(appStart: false));
 
           // open the dialog to open file instantly
           if (filePath != null && filePath.isNotEmpty) {
@@ -514,12 +534,8 @@ class ReceiveController {
       return;
     }
 
-    // ignore: unawaited_futures, discarded_futures
-    server.ref.redux(selectedSendingFilesProvider).dispatchAsyncTakeResult(LoadSelectionFromArgsAction(args)).then((filesAdded) {
-      if (filesAdded) {
-        server.ref.redux(homePageControllerProvider).dispatch(ChangeTabAction(HomeTab.send));
-      }
-    });
+    // ignore: discarded_futures
+    unawaited(server.ref.redux(selectedSendingFilesProvider).dispatchAsyncTakeResult(LoadSelectionFromArgsAction(args)));
   }
 
   /// Accepts the file request with the given [fileNameMap] (file id -> desired file name).
@@ -613,6 +629,33 @@ class ReceiveController {
       saveToGallery: session.saveToGallery,
       androidSdkInt: server.ref.read(deviceInfoProvider).androidSdkInt,
     );
+  }
+
+  /// Cancels one accepted file before its upload has started (e.g. the
+  /// receiver changing their mind about a single file of a multi-file
+  /// request), without affecting the rest of the session.
+  ///
+  /// Only effective while the file is still [FileStatus.queue]: the receive
+  /// side has no way to interrupt a file already being written (unlike the
+  /// send side, which can abort an outgoing stream mid-transfer), so once
+  /// the sender has started uploading it this does nothing.
+  void cancelQueuedFile(String fileId) {
+    final session = server.getStateOrNull()?.session;
+    if (session == null) {
+      return;
+    }
+    if (server.ref.read(fileTransferProvider).getStatus(sessionId: session.sessionId, fileId: fileId) != FileStatus.queue) {
+      return;
+    }
+
+    server.ref
+        .redux(parentIsolateProvider)
+        .dispatch(
+          IsolateHttpServerCancelFileAction(
+            sessionId: session.sessionId,
+            fileId: fileId,
+          ),
+        );
   }
 
   void declineFileRequest() {

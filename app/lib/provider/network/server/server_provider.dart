@@ -1,16 +1,18 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:localsend_app/gen/strings.g.dart';
-import 'package:localsend_app/model/cross_file.dart';
-import 'package:localsend_app/model/state/server/server_state.dart';
-import 'package:localsend_app/model/state/server/web_share_state.dart';
-import 'package:localsend_app/provider/network/server/controller/receive_controller.dart';
-import 'package:localsend_app/provider/network/server/controller/send_controller.dart';
-import 'package:localsend_app/provider/network/server/server_utils.dart';
-import 'package:localsend_app/provider/settings_provider.dart';
-import 'package:localsend_app/util/alias_generator.dart';
-import 'package:localsend_app/util/native/web_pages_loader.dart';
+import 'package:glide/gen/strings.g.dart';
+import 'package:glide/model/cross_file.dart';
+import 'package:glide/model/persistence/device_visibility.dart';
+import 'package:glide/model/state/server/server_state.dart';
+import 'package:glide/model/state/server/web_share_state.dart';
+import 'package:glide/provider/device_visibility_provider.dart';
+import 'package:glide/provider/network/server/controller/receive_controller.dart';
+import 'package:glide/provider/network/server/controller/send_controller.dart';
+import 'package:glide/provider/network/server/server_utils.dart';
+import 'package:glide/provider/settings_provider.dart';
+import 'package:glide/util/alias_generator.dart';
+import 'package:glide/util/native/web_pages_loader.dart';
 import 'package:localsend_isolates/constants.dart';
 import 'package:localsend_isolates/isolate.dart';
 import 'package:localsend_isolates/model/dto/multicast_dto.dart';
@@ -35,13 +37,22 @@ final serverProvider = NotifierProvider<ServerService, ServerState?>(
   onChanged: (_, next, ref) {
     final settings = ref.read(settingsProvider);
     final syncState = ref.read(parentIsolateProvider).syncState;
-    final syncStatePrev = (syncState.alias, syncState.port, syncState.protocol, syncState.serverRunning, syncState.download);
+    final discoverable = ref.read(deviceVisibilityProvider) != DeviceVisibility.hidden;
+    final syncStatePrev = (
+      syncState.alias,
+      syncState.port,
+      syncState.protocol,
+      syncState.serverRunning,
+      syncState.download,
+      syncState.discoverable,
+    );
     final syncStateNext = (
       next?.alias ?? settings.alias,
       next?.port ?? settings.port,
       (next?.https ?? settings.https) ? ProtocolType.https : ProtocolType.http,
       next != null,
       next?.webDownloadState != null,
+      discoverable,
     );
 
     if (syncStatePrev == syncStateNext) {
@@ -57,6 +68,7 @@ final serverProvider = NotifierProvider<ServerService, ServerState?>(
             protocol: syncStateNext.$3,
             serverRunning: syncStateNext.$4,
             download: syncStateNext.$5,
+            discoverable: syncStateNext.$6,
           ),
         );
   },
@@ -258,6 +270,12 @@ class ServerService extends Notifier<ServerState?> {
     _receiveController.declineFileRequest();
   }
 
+  /// Cancels one accepted file before its upload has started. See
+  /// [ReceiveController.cancelQueuedFile].
+  void cancelQueuedFile(String fileId) {
+    _receiveController.cancelQueuedFile(fileId);
+  }
+
   /// Updates the destination directory for the current session.
   void setSessionDestinationDir(String destinationDirectory) {
     _receiveController.setSessionDestinationDir(destinationDirectory);
@@ -446,6 +464,7 @@ class ServerService extends Notifier<ServerState?> {
             protocol: https ? ProtocolType.https : ProtocolType.http,
             serverRunning: serverRunning,
             download: download,
+            discoverable: ref.read(deviceVisibilityProvider) != DeviceVisibility.hidden,
           ),
         );
   }

@@ -2,22 +2,21 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:localsend_app/config/theme.dart';
-import 'package:localsend_app/gen/strings.g.dart';
-import 'package:localsend_app/model/persistence/color_mode.dart';
-import 'package:localsend_app/pages/receive_options_page.dart';
-import 'package:localsend_app/pages/verify_page.dart';
-import 'package:localsend_app/pages/web_share_page.dart';
-import 'package:localsend_app/provider/favorites_provider.dart';
-import 'package:localsend_app/provider/selection/selected_receiving_files_provider.dart';
-import 'package:localsend_app/provider/settings_provider.dart';
-import 'package:localsend_app/util/device_type_ext.dart';
-import 'package:localsend_app/util/favorites.dart';
-import 'package:localsend_app/util/native/platform_check.dart';
-import 'package:localsend_app/util/native/taskbar_helper.dart';
-import 'package:localsend_app/util/ui/snackbar.dart';
-import 'package:localsend_app/widget/device_bage.dart';
-import 'package:localsend_app/widget/responsive_list_view.dart';
+import 'package:glide/config/theme.dart';
+import 'package:glide/gen/strings.g.dart';
+import 'package:glide/model/persistence/color_mode.dart';
+import 'package:glide/pages/receive_options_page.dart';
+import 'package:glide/pages/verify_page.dart';
+import 'package:glide/provider/favorites_provider.dart';
+import 'package:glide/provider/selection/selected_receiving_files_provider.dart';
+import 'package:glide/provider/settings_provider.dart';
+import 'package:glide/util/device_type_ext.dart';
+import 'package:glide/util/favorites.dart';
+import 'package:glide/util/native/platform_check.dart';
+import 'package:glide/util/native/taskbar_helper.dart';
+import 'package:glide/util/ui/snackbar.dart';
+import 'package:glide/widget/device_bage.dart';
+import 'package:glide/widget/responsive_list_view.dart';
 import 'package:localsend_isolates/model/device.dart';
 import 'package:localsend_isolates/model/dto/file_dto.dart';
 import 'package:localsend_isolates/model/session_status.dart';
@@ -234,7 +233,7 @@ class _ReceivePageState extends State<ReceivePage> with Refena {
                                                       context.showSnackBar(t.general.copiedToClipboard);
                                                     }
                                                     vm.onAccept();
-                                                    context.global.dispatch(NavigateAction.popUntil<WebSharePage>());
+                                                    context.global.dispatch(NavigateAction.popUntilRoot());
                                                   },
                                                   icon: Icon(Icons.copy),
                                                   label: Text(t.general.copy),
@@ -249,7 +248,7 @@ class _ReceivePageState extends State<ReceivePage> with Refena {
                                                       // ignore: discarded_futures
                                                       launchUrl(Uri.parse(vm.message!), mode: LaunchMode.externalApplication);
                                                       vm.onAccept();
-                                                      context.global.dispatch(NavigateAction.popUntil<WebSharePage>());
+                                                      context.global.dispatch(NavigateAction.popUntilRoot());
                                                     },
                                                     icon: Icon(Icons.open_in_new),
                                                     label: Text(t.general.open),
@@ -297,7 +296,7 @@ class _Actions extends StatelessWidget {
           ),
           onPressed: () {
             vm.onAccept();
-            context.global.dispatch(NavigateAction.popUntil<WebSharePage>());
+            context.global.dispatch(NavigateAction.popUntilRoot());
           },
           icon: const Icon(Icons.close),
           label: Text(t.general.close),
@@ -320,7 +319,7 @@ class _Actions extends StatelessWidget {
             child: ElevatedButton.icon(
               onPressed: () {
                 vm.onClose();
-                context.global.dispatch(NavigateAction.popUntil<WebSharePage>());
+                context.global.dispatch(NavigateAction.popUntilRoot());
               },
               icon: const Icon(Icons.check_circle),
               label: Text(t.general.close),
@@ -343,7 +342,7 @@ class _Actions extends StatelessWidget {
               ),
               onPressed: () {
                 vm.onDecline();
-                context.global.dispatch(NavigateAction.popUntil<WebSharePage>());
+                context.global.dispatch(NavigateAction.popUntilRoot());
               },
               icon: const Icon(Icons.close),
               label: Text(t.general.decline),

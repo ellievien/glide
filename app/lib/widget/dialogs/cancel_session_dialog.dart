@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:localsend_app/gen/strings.g.dart';
-import 'package:localsend_app/widget/dialogs/custom_bottom_sheet.dart';
+import 'package:glide/gen/strings.g.dart';
+import 'package:glide/widget/dialogs/custom_bottom_sheet.dart';
 import 'package:routerino/routerino.dart';
 
 class CancelSessionDialog extends StatelessWidget {

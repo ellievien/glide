@@ -4,21 +4,23 @@ import 'dart:io';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:localsend_app/gen/strings.g.dart';
-import 'package:localsend_app/model/persistence/color_mode.dart';
-import 'package:localsend_app/model/persistence/favorite_device.dart';
-import 'package:localsend_app/model/persistence/quick_save_mode.dart';
-import 'package:localsend_app/model/persistence/receive_history_entry.dart';
-import 'package:localsend_app/model/send_mode.dart';
-import 'package:localsend_app/provider/window_dimensions_provider.dart';
-import 'package:localsend_app/util/alias_generator.dart';
-import 'package:localsend_app/util/native/autostart_helper.dart';
-import 'package:localsend_app/util/native/context_menu_helper.dart';
-import 'package:localsend_app/util/native/platform_check.dart';
-import 'package:localsend_app/util/security_helper.dart';
-import 'package:localsend_app/util/shared_preferences/shared_preferences_file.dart';
-import 'package:localsend_app/util/shared_preferences/shared_preferences_portable.dart';
-import 'package:localsend_app/util/ui/animations_status.dart';
+import 'package:glide/gen/strings.g.dart';
+import 'package:glide/model/persistence/color_mode.dart';
+import 'package:glide/model/persistence/device_visibility.dart';
+import 'package:glide/model/persistence/favorite_device.dart';
+import 'package:glide/model/persistence/quick_save_mode.dart';
+import 'package:glide/model/persistence/receive_history_entry.dart';
+import 'package:glide/model/persistence/send_history_entry.dart';
+import 'package:glide/model/send_mode.dart';
+import 'package:glide/provider/window_dimensions_provider.dart';
+import 'package:glide/util/alias_generator.dart';
+import 'package:glide/util/native/autostart_helper.dart';
+import 'package:glide/util/native/context_menu_helper.dart';
+import 'package:glide/util/native/platform_check.dart';
+import 'package:glide/util/security_helper.dart';
+import 'package:glide/util/shared_preferences/shared_preferences_file.dart';
+import 'package:glide/util/shared_preferences/shared_preferences_portable.dart';
+import 'package:glide/util/ui/animations_status.dart';
 import 'package:localsend_isolates/constants.dart';
 import 'package:localsend_isolates/model/device.dart';
 import 'package:localsend_isolates/model/stored_security_context.dart';
@@ -54,6 +56,12 @@ const _stunServers = 'ls_stun_servers';
 
 // Received file history
 const _receiveHistory = 'ls_receive_history';
+
+// Sent file history (Glide UI, see SendHistoryEntry)
+const _sendHistory = 'glide_send_history';
+
+// Glide UI: Settings > Visibility
+const _visibilityKey = 'glide_visibility';
 
 // Favorites
 const _favorites = 'ls_favorites';
@@ -94,7 +102,6 @@ const _receiveViaLinkAutoAccept = 'ls_receive_via_link_auto_accept';
 const _createChecksums = 'ls_create_checksums';
 const _verifyChecksums = 'ls_verify_checksums';
 const _advancedSettingsKey = 'ls_advanced_settings';
-const _whatsNewKey = 'ls_whats_new';
 
 final persistenceProvider = Provider<PersistenceService>((ref) {
   throw Exception('persistenceProvider not initialized');
@@ -260,6 +267,25 @@ class PersistenceService {
   Future<void> setReceiveHistory(List<ReceiveHistoryEntry> entries) async {
     final historyRaw = entries.map((entry) => jsonEncode(entry.toJson())).toList();
     await _prefs.setStringList(_receiveHistory, historyRaw);
+  }
+
+  List<SendHistoryEntry> getSendHistory() {
+    final historyRaw = _prefs.getStringList(_sendHistory) ?? [];
+    return historyRaw.map((entry) => SendHistoryEntry.fromJson(jsonDecode(entry) as Map<String, dynamic>)).toList();
+  }
+
+  Future<void> setSendHistory(List<SendHistoryEntry> entries) async {
+    final historyRaw = entries.map((entry) => jsonEncode(entry.toJson())).toList();
+    await _prefs.setStringList(_sendHistory, historyRaw);
+  }
+
+  DeviceVisibility getVisibility() {
+    final value = _prefs.getString(_visibilityKey);
+    return DeviceVisibility.values.firstWhereOrNull((v) => v.name == value) ?? DeviceVisibility.everyone;
+  }
+
+  Future<void> setVisibility(DeviceVisibility visibility) async {
+    await _prefs.setString(_visibilityKey, visibility.name);
   }
 
   List<FavoriteDevice> getFavorites() {
@@ -579,14 +605,6 @@ class PersistenceService {
 
   Future<void> setDeviceModel(String deviceModel) async {
     await _prefs.setString(_deviceModel, deviceModel);
-  }
-
-  String? getWhatsNew() {
-    return _prefs.getString(_whatsNewKey);
-  }
-
-  Future<void> setWhatsNew(String version) async {
-    await _prefs.setString(_whatsNewKey, version);
   }
 
   Future<void> clear() async {

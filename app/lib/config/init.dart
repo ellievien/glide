@@ -6,40 +6,34 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
-import 'package:localsend_app/config/refena.dart';
-import 'package:localsend_app/config/theme.dart';
-import 'package:localsend_app/pages/home_page.dart';
-import 'package:localsend_app/pages/home_page_controller.dart';
-import 'package:localsend_app/pages/whats_new_page.dart';
-import 'package:localsend_app/provider/animation_provider.dart';
-import 'package:localsend_app/provider/app_arguments_provider.dart';
-import 'package:localsend_app/provider/device_info_provider.dart';
-import 'package:localsend_app/provider/network/nearby_devices_provider.dart';
-import 'package:localsend_app/provider/network/server/server_provider.dart';
-import 'package:localsend_app/provider/network/webrtc/signaling_provider.dart';
-import 'package:localsend_app/provider/persistence_provider.dart';
-// [FOSS_REMOVE_START]
-import 'package:localsend_app/provider/purchase_provider.dart';
-// [FOSS_REMOVE_END]
-import 'package:localsend_app/provider/selection/selected_sending_files_provider.dart';
-import 'package:localsend_app/provider/settings_provider.dart';
-import 'package:localsend_app/provider/tv_provider.dart';
-import 'package:localsend_app/provider/version_provider.dart';
-import 'package:localsend_app/provider/window_dimensions_provider.dart';
-import 'package:localsend_app/util/i18n.dart';
-import 'package:localsend_app/util/native/autostart_helper.dart';
-import 'package:localsend_app/util/native/cache_helper.dart';
-import 'package:localsend_app/util/native/channel/android_channel.dart';
-import 'package:localsend_app/util/native/context_menu_helper.dart';
-import 'package:localsend_app/util/native/cross_file_converters.dart';
-import 'package:localsend_app/util/native/device_info_helper.dart';
-import 'package:localsend_app/util/native/macos_channel.dart';
-import 'package:localsend_app/util/native/platform_check.dart';
-import 'package:localsend_app/util/native/tray_helper.dart';
-import 'package:localsend_app/util/notification_strings.dart';
-import 'package:localsend_app/util/ui/dynamic_colors.dart';
-import 'package:localsend_app/util/ui/snackbar.dart';
-import 'package:localsend_app/widget/dialogs/local_network_dialog.dart';
+import 'package:glide/config/refena.dart';
+import 'package:glide/config/theme.dart';
+import 'package:glide/model/persistence/device_visibility.dart';
+import 'package:glide/provider/animation_provider.dart';
+import 'package:glide/provider/app_arguments_provider.dart';
+import 'package:glide/provider/device_info_provider.dart';
+import 'package:glide/provider/network/nearby_devices_provider.dart';
+import 'package:glide/provider/network/server/server_provider.dart';
+import 'package:glide/provider/network/webrtc/signaling_provider.dart';
+import 'package:glide/provider/persistence_provider.dart';
+import 'package:glide/provider/selection/selected_sending_files_provider.dart';
+import 'package:glide/provider/settings_provider.dart';
+import 'package:glide/provider/tv_provider.dart';
+import 'package:glide/provider/window_dimensions_provider.dart';
+import 'package:glide/util/i18n.dart';
+import 'package:glide/util/native/autostart_helper.dart';
+import 'package:glide/util/native/cache_helper.dart';
+import 'package:glide/util/native/channel/android_channel.dart';
+import 'package:glide/util/native/context_menu_helper.dart';
+import 'package:glide/util/native/cross_file_converters.dart';
+import 'package:glide/util/native/device_info_helper.dart';
+import 'package:glide/util/native/macos_channel.dart';
+import 'package:glide/util/native/platform_check.dart';
+import 'package:glide/util/native/tray_helper.dart';
+import 'package:glide/util/notification_strings.dart';
+import 'package:glide/util/ui/dynamic_colors.dart';
+import 'package:glide/util/ui/snackbar.dart';
+import 'package:glide/widget/dialogs/local_network_dialog.dart';
 import 'package:localsend_isolates/isolate.dart';
 import 'package:localsend_isolates/model/dto/file_dto.dart';
 import 'package:localsend_isolates/model/dto/multicast_dto.dart';
@@ -169,6 +163,7 @@ Future<RefenaContainer> preInit(List<String> args) async {
             discoveryTimeout: settings.discoveryTimeout,
             serverRunning: true,
             download: false,
+            discoverable: persistenceService.getVisibility() != DeviceVisibility.hidden,
           ),
         ),
       );
@@ -239,7 +234,6 @@ Future<void> postInit(BuildContext context, Ref ref, bool appStart) async {
         for (final string in pendingStrings) {
           ref.redux(selectedSendingFilesProvider).dispatch(AddMessageAction(message: string));
         }
-        ref.redux(homePageControllerProvider).dispatch(ChangeTabAction(HomeTab.send));
       });
 
       await setupMethodCallHandler();
@@ -292,25 +286,6 @@ Future<void> postInit(BuildContext context, Ref ref, bool appStart) async {
     // If we received a share intent, then don't clear it, otherwise the shared file will be lost.
     ref.global.dispatchAsync(ClearCacheAction()); // ignore: unawaited_futures
   }
-
-  if (!ref.read(persistenceProvider).isFirstAppStart) {
-    WhatsNewPage? whatsNew = WhatsNewPage.fromLastVersion(lastVersion: ref.read(persistenceProvider).getWhatsNew());
-    if (whatsNew != null) {
-      // ignore: unawaited_futures
-      ref.global.dispatchAsync(NavigateAction.push(whatsNew));
-    }
-  }
-
-  await ref.future(versionProvider).then((version) async {
-    await ref.read(persistenceProvider).setWhatsNew(version.version);
-  });
-
-  // [FOSS_REMOVE_START]
-  if (checkPlatformSupportPayment()) {
-    // ignore: unawaited_futures
-    ref.redux(purchaseProvider).dispatchAsync(InitPurchaseStream());
-  }
-  // [FOSS_REMOVE_END]
 }
 
 class _HandleShareIntentAction extends AsyncGlobalAction {
@@ -334,8 +309,6 @@ class _HandleShareIntentAction extends AsyncGlobalAction {
             converter: CrossFileConverters.convertSharedAttachment,
           ),
         );
-
-    ref.redux(homePageControllerProvider).dispatch(ChangeTabAction(HomeTab.send));
   }
 }
 
@@ -348,9 +321,6 @@ class _HandleAppStartArgumentsAction extends AsyncGlobalAction {
 
   @override
   Future<void> reduce() async {
-    final filesAdded = await ref.redux(selectedSendingFilesProvider).dispatchAsyncTakeResult(LoadSelectionFromArgsAction(args));
-    if (filesAdded) {
-      ref.redux(homePageControllerProvider).dispatch(ChangeTabAction(HomeTab.send));
-    }
+    await ref.redux(selectedSendingFilesProvider).dispatchAsyncTakeResult(LoadSelectionFromArgsAction(args));
   }
 }

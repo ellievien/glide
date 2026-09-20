@@ -1,7 +1,8 @@
-display_name: LocalSend
-packager: Tienisto
-packagerEmail: dev.tien.donam@gmail.com
-url: https://localsend.org
+display_name: Glide
+# TODO(Neverheard Studio): replace with a real packager contact.
+packager: Neverheard Studio
+packagerEmail: hello@neverheard.studio
+# TODO(Neverheard Studio): supply a real project URL once one exists.
 buildArch: x86_64
 license: MIT
 
@@ -17,7 +18,7 @@ keywords:
   - Files
 
 generic_name: An open source cross-platform alternative to AirDrop
-summary: Share files easily with LocalSend
+summary: Share files easily with Glide
 group: Applications/Utilities
 
 categories:

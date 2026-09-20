@@ -2,9 +2,9 @@ import 'dart:io';
 
 import 'package:device_apps/device_apps.dart';
 import 'package:flutter/foundation.dart';
+import 'package:glide/model/cross_file.dart';
+import 'package:glide/util/native/channel/android_channel.dart' as android_channel;
 import 'package:image_picker/image_picker.dart';
-import 'package:localsend_app/model/cross_file.dart';
-import 'package:localsend_app/util/native/channel/android_channel.dart' as android_channel;
 import 'package:localsend_isolates/model/file_type.dart';
 import 'package:localsend_isolates/rust/api/metadata.dart';
 import 'package:localsend_isolates/util/file_path_helper.dart';

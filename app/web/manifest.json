@@ -1,11 +1,11 @@
 {
-  "name": "localsend_app",
-  "short_name": "localsend_app",
+  "name": "Glide",
+  "short_name": "Glide",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#0175C2",
-  "theme_color": "#0175C2",
-  "description": "A new Flutter project.",
+  "background_color": "#F4F6FB",
+  "theme_color": "#355CF5",
+  "description": "Send files directly between devices on your local network - no cloud, no accounts.",
   "orientation": "portrait-primary",
   "prefer_related_applications": false,
   "icons": [

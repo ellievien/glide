@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:localsend_app/gen/strings.g.dart';
-import 'package:localsend_app/model/persistence/color_mode.dart';
-import 'package:localsend_app/provider/device_info_provider.dart';
-import 'package:localsend_app/util/native/platform_check.dart';
-import 'package:localsend_app/util/ui/dynamic_colors.dart';
+import 'package:glide/config/brand.dart';
+import 'package:glide/gen/strings.g.dart';
+import 'package:glide/model/persistence/color_mode.dart';
+import 'package:glide/provider/device_info_provider.dart';
+import 'package:glide/util/native/platform_check.dart';
+import 'package:glide/util/ui/dynamic_colors.dart';
 import 'package:refena_flutter/refena_flutter.dart';
 import 'package:yaru/yaru.dart' as yaru;
 
@@ -142,7 +143,7 @@ extension InputDecorationThemeExt on InputDecorationThemeData {
 
 ColorScheme _determineColorScheme(ColorMode mode, Color customColor, Brightness brightness, DynamicColors? dynamicColors) {
   final defaultColorScheme = ColorScheme.fromSeed(
-    seedColor: Colors.teal,
+    seedColor: GlideColors.electricBlue,
     brightness: brightness,
   );
 

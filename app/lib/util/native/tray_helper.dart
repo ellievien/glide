@@ -1,10 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:localsend_app/gen/assets.gen.dart';
-import 'package:localsend_app/gen/strings.g.dart';
-import 'package:localsend_app/provider/animation_provider.dart';
-import 'package:localsend_app/util/native/platform_check.dart';
+import 'package:glide/gen/assets.gen.dart';
+import 'package:glide/gen/strings.g.dart';
+import 'package:glide/provider/animation_provider.dart';
+import 'package:glide/util/native/platform_check.dart';
 import 'package:logging/logging.dart';
 import 'package:refena_flutter/refena_flutter.dart';
 import 'package:tray_manager/tray_manager.dart' as tm;
@@ -23,7 +23,7 @@ Future<void> initTray() async {
   }
   try {
     if (checkPlatform([TargetPlatform.windows])) {
-      await tm.trayManager.setIcon(Assets.img.logo);
+      await tm.trayManager.setIcon(Assets.brand.glide.glide);
     } else if (checkPlatform([TargetPlatform.macOS])) {
       // The menu bar icon will created in AppDelegate.swift
       return;
@@ -31,14 +31,14 @@ Future<void> initTray() async {
       String icon;
       if (await File('/.flatpak-info').exists()) {
         // Icon for Flatpak, which must exist in /app/share/icons/hicolor/*x*/apps.
-        icon = 'org.localsend.localsend_app-tray';
+        icon = 'org.glideapp.glide-tray';
       } else {
-        icon = Assets.img.logo32White.path;
+        icon = Assets.brand.glide.glideIcon32.path;
       }
       _logger.info('Using "$icon" as path of system tray icon');
       await tm.trayManager.setIcon(icon);
     } else {
-      await tm.trayManager.setIcon(Assets.img.logo32.path);
+      await tm.trayManager.setIcon(Assets.brand.glide.glideIcon32.path);
     }
 
     final items = [

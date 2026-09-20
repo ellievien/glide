@@ -1,10 +1,11 @@
 {
-  "appName": "LocalSend",
+  "appName": "Glide",
   "general": {
     "accept": "Accept",
     "accepted": "Accepted",
     "add": "Add",
     "advanced": "Advanced",
+    "back": "Back",
     "cancel": "Cancel",
     "close": "Close",
     "confirm": "Confirm",
@@ -25,12 +26,15 @@
     "on": "On",
     "online": "Online",
     "open": "Open",
+    "pause": "Pause",
+    "paused": "Paused",
     "queue": "Queue",
     "quickSave": "Quick Save",
     "quickSaveFromFavorites": "Quick Save for \"Favorites\"",
     "renamed": "Renamed",
     "reset": "Undo changes",
     "restart": "Restart",
+    "resume": "Resume",
     "settings": "Settings",
     "skipped": "Skipped",
     "start": "Start",
@@ -39,6 +43,102 @@
     "unchanged": "Unchanged",
     "unknown": "Unknown",
     "noItemInClipboard": "No items in Clipboard."
+  },
+  "glide": {
+    "common": {
+      "sendTo": "Send to {device}",
+      "renameDevice": "Rename device",
+      "connectionLost": "connection lost",
+      "thisMac": "This Mac",
+      "thisPc": "This PC",
+      "thisPhone": "This Phone",
+      "thisDevice": "This device"
+    },
+    "deviceVisibility": {
+      "everyone": "Everyone nearby",
+      "contactsOnly": "Contacts only",
+      "hidden": "Hidden",
+      "pillEveryone": "Discoverable by everyone nearby",
+      "pillContactsOnly": "Discoverable by contacts only",
+      "pillHidden": "Hidden from nearby devices"
+    },
+    "home": {
+      "offlineHeadline": "Turn on Wi-Fi or Hotspot to find devices nearby",
+      "openSystemSettings": "Open Settings",
+      "headline": "Open Glide on other devices to send files",
+      "emptySubtext": "No one nearby yet — keep Glide open on the other device too.",
+      "subtext": "Devices on the same network appear here automatically — nothing goes through the cloud.",
+      "knownAs": "You are known as",
+      "dropToQueue": "Drop to queue for sending",
+      "sendFileTo": "Send {file} to {device}",
+      "moreDevices": "{count} more devices",
+      "more": "More"
+    },
+    "sending": {
+      "declinedOn": "declined on {device}",
+      "busy": "{device} is busy",
+      "tooManyAttempts": "too many attempts",
+      "canceled": "canceled",
+      "receivingFrom": "Receiving from {device}",
+      "sendingTo": "Sending to {device}",
+      "stopReceiving": "Stop receiving",
+      "cancelTransfer": "Cancel transfer",
+      "waitingToAccept": "Waiting to accept",
+      "secondsLeft": "~{seconds}s left",
+      "speedAverage": "{speed} MB/s average",
+      "fileFallback": "file"
+    },
+    "landed": {
+      "transferFailed": "Transfer failed",
+      "landedFrom": "Landed from {device}",
+      "landedOn": "Landed on {device}",
+      "metaSuccess": "{file} · {size}",
+      "metaSuccessWithDuration": "{file} · {size} · in {duration}s",
+      "metaFailed": "{file} · {size} · {reason}",
+      "showInFolder": "Show in folder",
+      "sendAnother": "Send another",
+      "tryAgain": "Try again",
+      "backToHome": "Back to Home"
+    },
+    "incoming": {
+      "wantsToSend": "wants to send you a file",
+      "networkTrust": "Only devices on your network can see this",
+      "photo": "photo",
+      "file": "file"
+    },
+    "history": {
+      "title": "History",
+      "searchHint": "Search files and devices",
+      "closeSearch": "Close search",
+      "search": "Search",
+      "emptyTitle": "No transfers yet",
+      "emptySubtitle": "Files you send and receive will show up here.",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "failedSubtitle": "Failed · tap to retry",
+      "toDeviceSize": "to {device} · {size}",
+      "fromDeviceSize": "from {device} · {size}"
+    },
+    "settings": {
+      "thisDevice": "This device",
+      "visibleAs": "Visible as",
+      "web": "Web",
+      "visibility": "Visibility",
+      "transfers": "Transfers",
+      "saveTo": "Save to",
+      "askBeforeAccepting": "Ask before accepting",
+      "keepTransferHistory": "Keep transfer history",
+      "about": "About",
+      "version": "Version",
+      "licenseNotices": "Open-source licenses",
+      "footer": "Glide moves files directly between devices over your local network — nothing is uploaded to the cloud."
+    },
+    "deviceList": {
+      "title": "Devices"
+    },
+    "renameDialog": {
+      "title": "Rename this device"
+    }
   },
   "receiveTab": {
     "title": "Receive",
@@ -109,7 +209,7 @@
       "minimizeToTray": "Minimize to the System Tray/Menu Bar when closing",
       "launchAtStartup": "Autostart after login",
       "launchMinimized": "Autostart: Start hidden",
-      "showInContextMenu": "Show LocalSend in context menu",
+      "showInContextMenu": "Show GLIDE in context menu",
       "animations": "Animations"
     },
     "receive": {
@@ -152,7 +252,7 @@
     },
     "other": {
       "title": "Other",
-      "support": "Support LocalSend",
+      "support": "Support GLIDE",
       "donate": "Donate",
       "privacyPolicy": "Privacy Policy",
       "termsOfUse": "Terms of Use"
@@ -180,7 +280,7 @@
   },
   "networkInterfacesPage": {
     "title": "Network Interfaces",
-    "info": "By default, LocalSend uses all available network interfaces. You can exclude unwanted networks here. You need to restart the server to apply the changes.",
+    "info": "By default, GLIDE uses all available network interfaces. You can exclude unwanted networks here. You need to restart the server to apply the changes.",
     "preview": "Preview",
     "whitelist": "Whitelist",
     "blacklist": "Blacklist"
@@ -241,7 +341,7 @@
   "receiveOptionsPage": {
     "title": "Options",
     "destination": "@:settingsTab.receive.destination",
-    "appDirectory": "(LocalSend folder)",
+    "appDirectory": "(GLIDE folder)",
     "saveToGallery": "@:settingsTab.receive.saveToGallery",
     "saveToGalleryOff": "Turned off automatically because there are folders."
   },
@@ -293,17 +393,18 @@
     "autoAccept": "Automatically accept requests",
     "requirePin": "Require PIN",
     "pinHint": "The PIN is \"{pin}\"",
-    "encryptionHint": "LocalSend uses a self-signed certificate. You need to accept it in your browser.",
+    "encryptionHint": "GLIDE uses a self-signed certificate. You need to accept it in your browser.",
     "pendingRequests": "Pending requests: {n}"
   },
   "webReceivePage": {
     "title": "Receive via link"
   },
   "aboutPage": {
-    "title": "About LocalSend",
+    "title": "About GLIDE",
+    "tagline": "Your files. Any device.",
     "description": [
-      "LocalSend is a free, open-source app that allows you to securely share files and messages with nearby devices over your local network without needing an internet connection.",
-      "This app is available on Android, iOS, macOS, Windows and Linux. You can find all download options on the official homepage."
+      "GLIDE is a free, open-source app that allows you to securely share files and messages with nearby devices over your local network without needing an internet connection.",
+      "This app is available on Android, iOS, macOS, Windows and Linux."
     ],
     "author": "Author",
     "contributors": "Contributors",
@@ -312,7 +413,7 @@
   },
   "donationPage": {
     "title": "Donate",
-    "info": "LocalSend is free, open-source and without any ads. If you like the app, you can support the development with a donation.",
+    "info": "GLIDE is free, open-source and without any ads. If you like the app, you can support the development with a donation.",
     "donate": "Donate {amount}",
     "thanks": "Thank you very much!",
     "restore": "Restore purchase"
@@ -470,7 +571,7 @@
     },
     "localNetworkUnauthorized": {
       "title": "@:dialogs.noPermission.title",
-      "description": "LocalSend can't find other devices without having the permission to scan the local network. Please grant this permission in the settings.",
+      "description": "GLIDE can't find other devices without having the permission to scan the local network. Please grant this permission in the settings.",
       "gotoSettings": "Settings"
     },
     "messageInput": {
@@ -517,7 +618,7 @@
       "title": "Send modes",
       "single": "Sends files to one recipient. Selection will be cleared after finished files transfer.",
       "multiple": "Sends files to multiple recipients. Selection will not be cleared after finished files transfer.",
-      "link": "Recipients who do not have LocalSend installed can download the selected files by opening the link in their browser."
+      "link": "Recipients who do not have GLIDE installed can download the selected files by opening the link in their browser."
     },
     "zoom": {
       "title": "URL"
@@ -530,7 +631,7 @@
   "tray": {
     "@info": "Apple Guidelines are very strict about the \"close\" wording.",
     "open": "@:general.open",
-    "close": "Quit LocalSend",
+    "close": "Quit GLIDE",
     "closeWindows": "Exit"
   },
   "web": {

@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:localsend_app/provider/favorites_provider.dart';
-import 'package:localsend_app/provider/local_ip_provider.dart';
-import 'package:localsend_app/provider/network/nearby_devices_provider.dart';
-import 'package:localsend_app/provider/settings_provider.dart';
+import 'package:glide/provider/favorites_provider.dart';
+import 'package:glide/provider/local_ip_provider.dart';
+import 'package:glide/provider/network/nearby_devices_provider.dart';
+import 'package:glide/provider/settings_provider.dart';
 import 'package:refena_flutter/refena_flutter.dart';
 
 /// Discovers devices in stages, cheapest first: multicast announcement and

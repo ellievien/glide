@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
-  <assemblyIdentity version="0.0.0.0" name="localsendapp" />
+  <assemblyIdentity version="0.0.0.0" name="Glide" />
+  <!-- TODO(Neverheard Studio): packageName/applicationId must match
+       support/build/msix/content/AppxManifest.xml's Identity Name and
+       Glide's real code-signing certificate subject once assigned; left
+       as the original values here to avoid breaking that cross-file
+       identity match until a deliberate decision is made. -->
   <msix xmlns="urn:schemas-microsoft-com:msix.v1"
-          publisher="CN=Tien Do Nam, O=Tien Do Nam, L=Berlin, C=DE"
+          publisher="CN=Neverheard Studio, O=Neverheard Studio, L=Berlin, C=DE"
           packageName="LocalSend.App"
           applicationId="localsendapp"
         />

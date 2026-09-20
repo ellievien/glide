@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:localsend_app/config/theme.dart';
-import 'package:localsend_app/widget/responsive_builder.dart';
+import 'package:glide/config/theme.dart';
+import 'package:glide/widget/responsive_builder.dart';
 
 class BigButton extends StatelessWidget {
   static const double desktopWidth = 100.0;

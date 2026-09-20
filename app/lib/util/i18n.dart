@@ -1,4 +1,4 @@
-import 'package:localsend_app/gen/strings.g.dart';
+import 'package:glide/gen/strings.g.dart';
 
 Future<void> initI18n() async {
   // Register default plural resolver
@@ -60,6 +60,7 @@ extension AppLocaleExt on AppLocale {
       AppLocale.ja => '日本語',
       AppLocale.km => 'ភាសាខ្មែរ',
       AppLocale.ko => '한국어',
+      AppLocale.ky => 'Кыргызча',
       AppLocale.lo => 'ລາວ',
       AppLocale.ml => 'മലയാളം',
       AppLocale.mn => 'Монгол',

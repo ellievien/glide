@@ -1,1 +1,1 @@
-Add-AppxPackage .\localsend_msix_helper.msix -ExternalLocation $(Get-Location)
+Add-AppxPackage .\glide_msix_helper.msix -ExternalLocation $(Get-Location)

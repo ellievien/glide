@@ -45,7 +45,11 @@ Future<DeviceInfoResult> getDeviceInfo() async {
         deviceModel = 'Linux';
         break;
       case TargetPlatform.macOS:
-        deviceModel = 'macOS';
+        // The real model name (e.g. "MacBook Pro", "Mac mini") when available,
+        // so peers -- and this device's own icon, see deviceIconFor -- can
+        // tell a laptop from a desktop Mac; the protocol has no other signal.
+        final deviceInfo = await plugin.macOsInfo;
+        deviceModel = deviceInfo.modelName.isNotEmpty ? deviceInfo.modelName : 'macOS';
         break;
       case TargetPlatform.windows:
         deviceModel = 'Windows';

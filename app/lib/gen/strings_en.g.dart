@@ -43,10 +43,11 @@ class Translations with BaseTranslations<AppLocale, Translations> {
 
   // Translations
 
-  /// en: 'LocalSend'
-  String get appName => 'LocalSend';
+  /// en: 'GLIDE'
+  String get appName => 'GLIDE';
 
   late final Translations$general$en general = Translations$general$en.internal(_root);
+  late final Translations$glide$en glide = Translations$glide$en.internal(_root);
   late final Translations$receiveTab$en receiveTab = Translations$receiveTab$en.internal(_root);
   late final Translations$sendTab$en sendTab = Translations$sendTab$en.internal(_root);
   late final Translations$settingsTab$en settingsTab = Translations$settingsTab$en.internal(_root);
@@ -94,6 +95,9 @@ class Translations$general$en {
 
   /// en: 'Advanced'
   String get advanced => 'Advanced';
+
+  /// en: 'Back'
+  String get back => 'Back';
 
   /// en: 'Cancel'
   String get cancel => 'Cancel';
@@ -155,6 +159,12 @@ class Translations$general$en {
   /// en: 'Open'
   String get open => 'Open';
 
+  /// en: 'Pause'
+  String get pause => 'Pause';
+
+  /// en: 'Paused'
+  String get paused => 'Paused';
+
   /// en: 'Queue'
   String get queue => 'Queue';
 
@@ -172,6 +182,9 @@ class Translations$general$en {
 
   /// en: 'Restart'
   String get restart => 'Restart';
+
+  /// en: 'Resume'
+  String get resume => 'Resume';
 
   /// en: 'Settings'
   String get settings => 'Settings';
@@ -196,6 +209,25 @@ class Translations$general$en {
 
   /// en: 'No items in Clipboard.'
   String get noItemInClipboard => 'No items in Clipboard.';
+}
+
+// Path: glide
+class Translations$glide$en {
+  Translations$glide$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+  late final Translations$glide$common$en common = Translations$glide$common$en.internal(_root);
+  late final Translations$glide$deviceVisibility$en deviceVisibility = Translations$glide$deviceVisibility$en.internal(_root);
+  late final Translations$glide$home$en home = Translations$glide$home$en.internal(_root);
+  late final Translations$glide$sending$en sending = Translations$glide$sending$en.internal(_root);
+  late final Translations$glide$landed$en landed = Translations$glide$landed$en.internal(_root);
+  late final Translations$glide$incoming$en incoming = Translations$glide$incoming$en.internal(_root);
+  late final Translations$glide$history$en history = Translations$glide$history$en.internal(_root);
+  late final Translations$glide$settings$en settings = Translations$glide$settings$en.internal(_root);
+  late final Translations$glide$deviceList$en deviceList = Translations$glide$deviceList$en.internal(_root);
+  late final Translations$glide$renameDialog$en renameDialog = Translations$glide$renameDialog$en.internal(_root);
 }
 
 // Path: receiveTab
@@ -317,9 +349,9 @@ class Translations$networkInterfacesPage$en {
   /// en: 'Network Interfaces'
   String get title => 'Network Interfaces';
 
-  /// en: 'By default, LocalSend uses all available network interfaces. You can exclude unwanted networks here. You need to restart the server to apply the changes.'
+  /// en: 'By default, GLIDE uses all available network interfaces. You can exclude unwanted networks here. You need to restart the server to apply the changes.'
   String get info =>
-      'By default, LocalSend uses all available network interfaces. You can exclude unwanted networks here. You need to restart the server to apply the changes.';
+      'By default, GLIDE uses all available network interfaces. You can exclude unwanted networks here. You need to restart the server to apply the changes.';
 
   /// en: 'Preview'
   String get preview => 'Preview';
@@ -468,8 +500,8 @@ class Translations$receiveOptionsPage$en {
   /// en: 'Save to folder'
   String get destination => _root.settingsTab.receive.destination;
 
-  /// en: '(LocalSend folder)'
-  String get appDirectory => '(LocalSend folder)';
+  /// en: '(GLIDE folder)'
+  String get appDirectory => '(GLIDE folder)';
 
   /// en: 'Save media to gallery'
   String get saveToGallery => _root.settingsTab.receive.saveToGallery;
@@ -568,8 +600,8 @@ class Translations$webSharePage$en {
   /// en: 'The PIN is "{pin}"'
   String pinHint({required Object pin}) => 'The PIN is "${pin}"';
 
-  /// en: 'LocalSend uses a self-signed certificate. You need to accept it in your browser.'
-  String get encryptionHint => 'LocalSend uses a self-signed certificate. You need to accept it in your browser.';
+  /// en: 'GLIDE uses a self-signed certificate. You need to accept it in your browser.'
+  String get encryptionHint => 'GLIDE uses a self-signed certificate. You need to accept it in your browser.';
 
   /// en: 'Pending requests: {n}'
   String pendingRequests({required Object n}) => 'Pending requests: ${n}';
@@ -595,12 +627,15 @@ class Translations$aboutPage$en {
 
   // Translations
 
-  /// en: 'About LocalSend'
-  String get title => 'About LocalSend';
+  /// en: 'About GLIDE'
+  String get title => 'About GLIDE';
+
+  /// en: 'Your files. Any device.'
+  String get tagline => 'Your files. Any device.';
 
   List<String> get description => [
-    'LocalSend is a free, open-source app that allows you to securely share files and messages with nearby devices over your local network without needing an internet connection.',
-    'This app is available on Android, iOS, macOS, Windows and Linux. You can find all download options on the official homepage.',
+    'GLIDE is a free, open-source app that allows you to securely share files and messages with nearby devices over your local network without needing an internet connection.',
+    'This app is available on Android, iOS, macOS, Windows and Linux.',
   ];
 
   /// en: 'Author'
@@ -627,8 +662,8 @@ class Translations$donationPage$en {
   /// en: 'Donate'
   String get title => 'Donate';
 
-  /// en: 'LocalSend is free, open-source and without any ads. If you like the app, you can support the development with a donation.'
-  String get info => 'LocalSend is free, open-source and without any ads. If you like the app, you can support the development with a donation.';
+  /// en: 'GLIDE is free, open-source and without any ads. If you like the app, you can support the development with a donation.'
+  String get info => 'GLIDE is free, open-source and without any ads. If you like the app, you can support the development with a donation.';
 
   /// en: 'Donate {amount}'
   String donate({required Object amount}) => 'Donate ${amount}';
@@ -813,8 +848,8 @@ class Translations$tray$en {
   /// en: 'Open'
   String get open => _root.general.open;
 
-  /// en: 'Quit LocalSend'
-  String get close => 'Quit LocalSend';
+  /// en: 'Quit GLIDE'
+  String get close => 'Quit GLIDE';
 
   /// en: 'Exit'
   String get closeWindows => 'Exit';
@@ -945,6 +980,318 @@ class Translations$assetPicker$en {
 
   /// en: 'count'
   String get sUnitAssetCountLabel => 'count';
+}
+
+// Path: glide.common
+class Translations$glide$common$en {
+  Translations$glide$common$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'Send to {device}'
+  String sendTo({required Object device}) => 'Send to ${device}';
+
+  /// en: 'Rename device'
+  String get renameDevice => 'Rename device';
+
+  /// en: 'connection lost'
+  String get connectionLost => 'connection lost';
+
+  /// en: 'This Mac'
+  String get thisMac => 'This Mac';
+
+  /// en: 'This PC'
+  String get thisPc => 'This PC';
+
+  /// en: 'This Phone'
+  String get thisPhone => 'This Phone';
+
+  /// en: 'This device'
+  String get thisDevice => 'This device';
+}
+
+// Path: glide.deviceVisibility
+class Translations$glide$deviceVisibility$en {
+  Translations$glide$deviceVisibility$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'Everyone nearby'
+  String get everyone => 'Everyone nearby';
+
+  /// en: 'Contacts only'
+  String get contactsOnly => 'Contacts only';
+
+  /// en: 'Hidden'
+  String get hidden => 'Hidden';
+
+  /// en: 'Discoverable by everyone nearby'
+  String get pillEveryone => 'Discoverable by everyone nearby';
+
+  /// en: 'Discoverable by contacts only'
+  String get pillContactsOnly => 'Discoverable by contacts only';
+
+  /// en: 'Hidden from nearby devices'
+  String get pillHidden => 'Hidden from nearby devices';
+}
+
+// Path: glide.home
+class Translations$glide$home$en {
+  Translations$glide$home$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'Turn on Wi-Fi or Hotspot to find devices nearby'
+  String get offlineHeadline => 'Turn on Wi-Fi or Hotspot to find devices nearby';
+
+  /// en: 'Open Settings'
+  String get openSystemSettings => 'Open Settings';
+
+  /// en: 'Open Glide on other devices to send files'
+  String get headline => 'Open Glide on other devices to send files';
+
+  /// en: 'No one nearby yet — keep Glide open on the other device too.'
+  String get emptySubtext => 'No one nearby yet — keep Glide open on the other device too.';
+
+  /// en: 'Devices on the same network appear here automatically — nothing goes through the cloud.'
+  String get subtext => 'Devices on the same network appear here automatically — nothing goes through the cloud.';
+
+  /// en: 'You are known as'
+  String get knownAs => 'You are known as';
+
+  /// en: 'Drop to queue for sending'
+  String get dropToQueue => 'Drop to queue for sending';
+
+  /// en: 'Send {file} to {device}'
+  String sendFileTo({required Object file, required Object device}) => 'Send ${file} to ${device}';
+
+  /// en: '{count} more devices'
+  String moreDevices({required Object count}) => '${count} more devices';
+
+  /// en: 'More'
+  String get more => 'More';
+}
+
+// Path: glide.sending
+class Translations$glide$sending$en {
+  Translations$glide$sending$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'declined on {device}'
+  String declinedOn({required Object device}) => 'declined on ${device}';
+
+  /// en: '{device} is busy'
+  String busy({required Object device}) => '${device} is busy';
+
+  /// en: 'too many attempts'
+  String get tooManyAttempts => 'too many attempts';
+
+  /// en: 'canceled'
+  String get canceled => 'canceled';
+
+  /// en: 'Receiving from {device}'
+  String receivingFrom({required Object device}) => 'Receiving from ${device}';
+
+  /// en: 'Sending to {device}'
+  String sendingTo({required Object device}) => 'Sending to ${device}';
+
+  /// en: 'Stop receiving'
+  String get stopReceiving => 'Stop receiving';
+
+  /// en: 'Cancel transfer'
+  String get cancelTransfer => 'Cancel transfer';
+
+  /// en: 'Waiting to accept'
+  String get waitingToAccept => 'Waiting to accept';
+
+  /// en: '~{seconds}s left'
+  String secondsLeft({required Object seconds}) => '~${seconds}s left';
+
+  /// en: '{speed} MB/s average'
+  String speedAverage({required Object speed}) => '${speed} MB/s average';
+
+  /// en: 'file'
+  String get fileFallback => 'file';
+}
+
+// Path: glide.landed
+class Translations$glide$landed$en {
+  Translations$glide$landed$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'Transfer failed'
+  String get transferFailed => 'Transfer failed';
+
+  /// en: 'Landed from {device}'
+  String landedFrom({required Object device}) => 'Landed from ${device}';
+
+  /// en: 'Landed on {device}'
+  String landedOn({required Object device}) => 'Landed on ${device}';
+
+  /// en: '{file} · {size}'
+  String metaSuccess({required Object file, required Object size}) => '${file} · ${size}';
+
+  /// en: '{file} · {size} · in {duration}s'
+  String metaSuccessWithDuration({required Object file, required Object size, required Object duration}) => '${file} · ${size} · in ${duration}s';
+
+  /// en: '{file} · {size} · {reason}'
+  String metaFailed({required Object file, required Object size, required Object reason}) => '${file} · ${size} · ${reason}';
+
+  /// en: 'Show in folder'
+  String get showInFolder => 'Show in folder';
+
+  /// en: 'Send another'
+  String get sendAnother => 'Send another';
+
+  /// en: 'Try again'
+  String get tryAgain => 'Try again';
+
+  /// en: 'Back to Home'
+  String get backToHome => 'Back to Home';
+}
+
+// Path: glide.incoming
+class Translations$glide$incoming$en {
+  Translations$glide$incoming$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'wants to send you a file'
+  String get wantsToSend => 'wants to send you a file';
+
+  /// en: 'Only devices on your network can see this'
+  String get networkTrust => 'Only devices on your network can see this';
+
+  /// en: 'photo'
+  String get photo => 'photo';
+
+  /// en: 'file'
+  String get file => 'file';
+}
+
+// Path: glide.history
+class Translations$glide$history$en {
+  Translations$glide$history$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'History'
+  String get title => 'History';
+
+  /// en: 'Search files and devices'
+  String get searchHint => 'Search files and devices';
+
+  /// en: 'Close search'
+  String get closeSearch => 'Close search';
+
+  /// en: 'Search'
+  String get search => 'Search';
+
+  /// en: 'No transfers yet'
+  String get emptyTitle => 'No transfers yet';
+
+  /// en: 'Files you send and receive will show up here.'
+  String get emptySubtitle => 'Files you send and receive will show up here.';
+
+  /// en: 'Today'
+  String get today => 'Today';
+
+  /// en: 'Yesterday'
+  String get yesterday => 'Yesterday';
+
+  /// en: 'Failed · tap to retry'
+  String get failedSubtitle => 'Failed · tap to retry';
+
+  /// en: 'to {device} · {size}'
+  String toDeviceSize({required Object device, required Object size}) => 'to ${device} · ${size}';
+
+  /// en: 'from {device} · {size}'
+  String fromDeviceSize({required Object device, required Object size}) => 'from ${device} · ${size}';
+}
+
+// Path: glide.settings
+class Translations$glide$settings$en {
+  Translations$glide$settings$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'This device'
+  String get thisDevice => 'This device';
+
+  /// en: 'Visible as'
+  String get visibleAs => 'Visible as';
+
+  /// en: 'Web'
+  String get web => 'Web';
+
+  /// en: 'Visibility'
+  String get visibility => 'Visibility';
+
+  /// en: 'Transfers'
+  String get transfers => 'Transfers';
+
+  /// en: 'Save to'
+  String get saveTo => 'Save to';
+
+  /// en: 'Ask before accepting'
+  String get askBeforeAccepting => 'Ask before accepting';
+
+  /// en: 'Keep transfer history'
+  String get keepTransferHistory => 'Keep transfer history';
+
+  /// en: 'About'
+  String get about => 'About';
+
+  /// en: 'Version'
+  String get version => 'Version';
+
+  /// en: 'Open-source licenses'
+  String get licenseNotices => 'Open-source licenses';
+
+  /// en: 'Glide moves files directly between devices over your local network — nothing is uploaded to the cloud.'
+  String get footer => 'Glide moves files directly between devices over your local network — nothing is uploaded to the cloud.';
+}
+
+// Path: glide.deviceList
+class Translations$glide$deviceList$en {
+  Translations$glide$deviceList$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'Devices'
+  String get title => 'Devices';
+}
+
+// Path: glide.renameDialog
+class Translations$glide$renameDialog$en {
+  Translations$glide$renameDialog$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'Rename this device'
+  String get title => 'Rename this device';
 }
 
 // Path: receiveTab.infoBox
@@ -1091,8 +1438,8 @@ class Translations$settingsTab$general$en {
   /// en: 'Autostart: Start hidden'
   String get launchMinimized => 'Autostart: Start hidden';
 
-  /// en: 'Show LocalSend in context menu'
-  String get showInContextMenu => 'Show LocalSend in context menu';
+  /// en: 'Show GLIDE in context menu'
+  String get showInContextMenu => 'Show GLIDE in context menu';
 
   /// en: 'Animations'
   String get animations => 'Animations';
@@ -1224,8 +1571,8 @@ class Translations$settingsTab$other$en {
   /// en: 'Other'
   String get title => 'Other';
 
-  /// en: 'Support LocalSend'
-  String get support => 'Support LocalSend';
+  /// en: 'Support GLIDE'
+  String get support => 'Support GLIDE';
 
   /// en: 'Donate'
   String get donate => 'Donate';
@@ -1644,9 +1991,9 @@ class Translations$dialogs$localNetworkUnauthorized$en {
   /// en: 'No permission'
   String get title => _root.dialogs.noPermission.title;
 
-  /// en: 'LocalSend can't find other devices without having the permission to scan the local network. Please grant this permission in the settings.'
+  /// en: 'GLIDE can't find other devices without having the permission to scan the local network. Please grant this permission in the settings.'
   String get description =>
-      'LocalSend can\'t find other devices without having the permission to scan the local network. Please grant this permission in the settings.';
+      'GLIDE can\'t find other devices without having the permission to scan the local network. Please grant this permission in the settings.';
 
   /// en: 'Settings'
   String get gotoSettings => 'Settings';
@@ -1811,8 +2158,8 @@ class Translations$dialogs$sendModeHelp$en {
   /// en: 'Sends files to multiple recipients. Selection will not be cleared after finished files transfer.'
   String get multiple => 'Sends files to multiple recipients. Selection will not be cleared after finished files transfer.';
 
-  /// en: 'Recipients who do not have LocalSend installed can download the selected files by opening the link in their browser.'
-  String get link => 'Recipients who do not have LocalSend installed can download the selected files by opening the link in their browser.';
+  /// en: 'Recipients who do not have GLIDE installed can download the selected files by opening the link in their browser.'
+  String get link => 'Recipients who do not have GLIDE installed can download the selected files by opening the link in their browser.';
 }
 
 // Path: dialogs.zoom

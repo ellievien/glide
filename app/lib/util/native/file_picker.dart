@@ -4,22 +4,21 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:localsend_app/config/theme.dart';
-import 'package:localsend_app/gen/strings.g.dart';
-import 'package:localsend_app/model/cross_file.dart';
-import 'package:localsend_app/pages/apk_picker_page.dart';
-import 'package:localsend_app/provider/device_info_provider.dart';
-import 'package:localsend_app/provider/selection/selected_sending_files_provider.dart';
-import 'package:localsend_app/util/determine_image_type.dart';
-import 'package:localsend_app/util/image_converter.dart';
-import 'package:localsend_app/util/native/channel/android_channel.dart' as android_channel;
-import 'package:localsend_app/util/native/cross_file_converters.dart';
-import 'package:localsend_app/util/native/pick_directory_path.dart';
-import 'package:localsend_app/util/native/platform_check.dart';
-import 'package:localsend_app/util/ui/asset_picker_translated_text_delegate.dart';
-import 'package:localsend_app/widget/dialogs/loading_dialog.dart';
-import 'package:localsend_app/widget/dialogs/message_input_dialog.dart';
-import 'package:localsend_app/widget/dialogs/no_permission_dialog.dart';
+import 'package:glide/config/theme.dart';
+import 'package:glide/gen/strings.g.dart';
+import 'package:glide/model/cross_file.dart';
+import 'package:glide/provider/device_info_provider.dart';
+import 'package:glide/provider/selection/selected_sending_files_provider.dart';
+import 'package:glide/util/determine_image_type.dart';
+import 'package:glide/util/image_converter.dart';
+import 'package:glide/util/native/channel/android_channel.dart' as android_channel;
+import 'package:glide/util/native/cross_file_converters.dart';
+import 'package:glide/util/native/pick_directory_path.dart';
+import 'package:glide/util/native/platform_check.dart';
+import 'package:glide/util/ui/asset_picker_translated_text_delegate.dart';
+import 'package:glide/widget/dialogs/loading_dialog.dart';
+import 'package:glide/widget/dialogs/message_input_dialog.dart';
+import 'package:glide/widget/dialogs/no_permission_dialog.dart';
 import 'package:localsend_isolates/model/file_type.dart';
 import 'package:localsend_isolates/util/file_path_helper.dart';
 import 'package:localsend_isolates/util/sleep.dart';
@@ -39,7 +38,6 @@ enum FilePickerOption {
   folder(Icons.folder),
   media(Icons.image),
   text(Icons.subject),
-  app(Icons.apps),
   clipboard(Icons.paste)
   ;
 
@@ -57,8 +55,6 @@ enum FilePickerOption {
         return t.sendTab.picker.media;
       case FilePickerOption.text:
         return t.sendTab.picker.text;
-      case FilePickerOption.app:
-        return t.sendTab.picker.app;
       case FilePickerOption.clipboard:
         return t.sendTab.picker.clipboard;
     }
@@ -85,7 +81,6 @@ enum FilePickerOption {
         FilePickerOption.clipboard,
         FilePickerOption.text,
         FilePickerOption.folder,
-        FilePickerOption.app,
       ];
     } else {
       // Desktop
@@ -129,10 +124,6 @@ class PickFileAction extends AsyncGlobalAction {
       case FilePickerOption.clipboard:
         // ignore: use_build_context_synchronously
         await _pickClipboard(context, ref);
-        break;
-      case FilePickerOption.app:
-        // ignore: use_build_context_synchronously
-        await _pickApp(context);
         break;
     }
   }
@@ -366,11 +357,6 @@ Future<void> _pickClipboard(BuildContext context, Ref ref) async {
       content: Text(t.general.noItemInClipboard),
     ),
   );
-}
-
-Future<void> _pickApp(BuildContext context) async {
-  // Currently, only Android APK
-  await context.push(() => const ApkPickerPage());
 }
 
 extension on int {
