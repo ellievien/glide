@@ -19,6 +19,12 @@
 
 # macOS
 .DS_Store
+# AppleDouble sidecars, created when the repo lives on a filesystem without
+# native xattr support (e.g. an exFAT external drive).
+._*
 
 # Generated at build time by makepri (see support/scripts/compile_windows_msix_helper.ps1)
 /support/build/msix/content/resources.pri
+
+# Local release output (see support/scripts)
+/dist/
