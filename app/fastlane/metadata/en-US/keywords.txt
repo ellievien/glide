@@ -1,0 +1,1 @@
+file transfer,wifi share,local network,send files,nearby share,offline transfer,lan transfer,p2p

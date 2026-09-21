@@ -1,0 +1,15 @@
+Glide sends files directly between your devices over the local network — no cloud, no account, no size limits.
+
+Open Glide on two devices connected to the same Wi-Fi network and they find each other automatically. Pick a photo, video, document, or any other file, choose the nearby device, and it transfers straight to it — similar to how AirDrop works between Apple devices, except Glide also works with Android, Windows, macOS, and Linux, so you can send between any mix of platforms.
+
+How it works:
+• Automatic discovery of nearby devices on the same network
+• Direct device-to-device transfer — your files never pass through a server
+• Send photos and videos, files and folders, or plain text and links
+• Transfer history so you can find what you recently sent or received
+• Works across iOS, Android, Windows, macOS, and Linux
+
+Privacy by design:
+Glide doesn't have user accounts, doesn't run analytics or ad tracking, and doesn't send your files or metadata anywhere outside your local network. What you share stays between your devices.
+
+Glide is free to use, with no in-app purchases and no ads.

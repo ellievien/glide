@@ -1,0 +1,1 @@
+Initial release of Glide: send files directly between nearby devices over your local network, with no cloud, no account, and no size limits.
