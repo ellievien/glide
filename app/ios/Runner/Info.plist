@@ -107,22 +107,12 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_http._tcp</string>
-		<string>_bonjour._tcp</string>
-		<string>_lnp._tcp.</string>
-	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>The app uses the local network to find and connect to nearby devices.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>The app requires the local IP to communicate.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>The app requires the local IP to communicate.</string>
+	<string>Glide uses your local network to discover nearby devices and send or receive files with them directly, without going through the internet.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>The app saves received media to the photo library.</string>
+	<string>Glide saves photos and videos you receive from other devices to your photo library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>The app needs photo library access so that the user can select photos to share.</string>
+	<string>Glide needs access to your photo library so you can choose photos and videos to send to nearby devices.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
