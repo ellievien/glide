@@ -1,4 +1,10 @@
-name: Build windows exe (unsigned)
+name: Build windows zip (unsigned)
+
+# Unsigned counterpart to build_windows_zip_x64.yml: that workflow code-signs
+# through Azure Trusted Signing under upstream LocalSend's own Azure tenant
+# (trusted-signing-account-name: tienisto), which this fork has no access to
+# and never will. This is the same "unsigned" pattern already used by
+# build_windows_exe_unsigned.yml for the installer.
 
 on:
   workflow_dispatch:
@@ -22,7 +28,7 @@ jobs:
           VERSION=$(sed -n 's/^version: \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/p' app/pubspec.yaml)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-  build_windows_exe_x86_64:
+  build_windows_zip_x86_64:
     needs: build
     runs-on: windows-latest
 
@@ -53,24 +59,32 @@ jobs:
         working-directory: app
         run: flutter build windows
 
-      - name: Prepare Inno Setup payload
+      - name: Create empty settings.json
+        working-directory: app
+        run: echo {} > build/windows/x64/runner/Release/settings.json
+
+      - name: Add DLL files
+        working-directory: app
         run: |
-          New-Item -ItemType Directory -Force -Path "${{ runner.temp }}\inno" | Out-Null
-          Copy-Item -Path "app\build\windows\x64\runner\Release\*" -Destination "${{ runner.temp }}\inno" -Recurse
-          Copy-Item -Path "app\assets\packaging\logo.ico" -Destination "${{ runner.temp }}\inno"
-          Copy-Item -Path "support\build\windows\x64\*" -Destination "${{ runner.temp }}\inno" -Recurse
-          New-Item -ItemType Directory -Force -Path "${{ runner.temp }}\inno-result" | Out-Null
+          Copy-Item ../support/build/windows/x64/msvcp140.dll build/windows/x64/runner/Release/
+          Copy-Item ../support/build/windows/x64/vcruntime140.dll build/windows/x64/runner/Release/
+          Copy-Item ../support/build/windows/x64/vcruntime140_1.dll build/windows/x64/runner/Release/
 
-      # SkipMsixHelper: the helper would be unsigned and Add-AppxPackage rejects unsigned packages
-      - name: Compile installer (unsigned)
-        run: iscc /DSkipSignTool /DSkipMsixHelper "/DPayloadDir=${{ runner.temp }}\inno" "/DResultDir=${{ runner.temp }}\inno-result" support\scripts\compile_windows_exe-inno.iss
+      # The MSIX helper only makes sense for the installer; portable users should not register an MSIX package
+      - name: Remove MSIX helper from portable bundle
+        working-directory: app
+        run: |
+          Remove-Item build/windows/x64/runner/Release/localsend_msix_helper.msix
+          Remove-Item build/windows/x64/runner/Release/install_msix_helper.ps1
+          Remove-Item build/windows/x64/runner/Release/localsend_app.exe.manifest
 
-      - name: Rename installer
-        run: Rename-Item -Path "${{ runner.temp }}\inno-result\localsend.exe" -NewName "LocalSend-${{ needs.build.outputs.version }}-windows-x86-64.exe"
+      - name: Zip compiled files
+        working-directory: app
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "LocalSend-${{ needs.build.outputs.version }}-windows-x86-64.zip"
 
-      - name: Upload installer
+      - name: Upload zip
         uses: actions/upload-artifact@v6
         with:
-          name: windows-exe-x86-64-unsigned
-          path: ${{ runner.temp }}\inno-result\LocalSend-${{ needs.build.outputs.version }}-windows-x86-64.exe
+          name: windows-zip-x86-64-unsigned
+          path: app/LocalSend-${{ needs.build.outputs.version }}-windows-x86-64.zip
           if-no-files-found: error

@@ -1,0 +1,88 @@
+name: Release
+
+# Triggered by pushing a version tag (v1.0.0, v1.2.3, ...). Builds every
+# platform this fork can currently produce without upstream-only secrets
+# (see build_windows_zip_unsigned.yml for why the Windows build is unsigned),
+# then publishes everything to a single GitHub Release for that tag.
+#
+# Superseded here (see .github/workflows/release.yml, disabled): the old
+# "Release Draft" workflow required Azure Trusted Signing secrets scoped to
+# upstream LocalSend's own Azure tenant, which this fork cannot use.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build_apk:
+    uses: ./.github/workflows/build_android_apk.yml
+    secrets: inherit
+
+  build_appimage_x86_64:
+    uses: ./.github/workflows/build_linux_appimage_x64.yml
+
+  build_deb_x86_64:
+    uses: ./.github/workflows/build_linux_deb_x64.yml
+
+  build_windows_zip_x86_64:
+    uses: ./.github/workflows/build_windows_zip_unsigned.yml
+
+  build_windows_exe_x86_64:
+    uses: ./.github/workflows/build_windows_exe_unsigned.yml
+
+  publish_release:
+    needs:
+      - build_apk
+      - build_appimage_x86_64
+      - build_deb_x86_64
+      - build_windows_zip_x86_64
+      - build_windows_exe_x86_64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Get version from pubspec.yaml
+        id: get_version
+        run: |
+          VERSION=$(sed -n 's/^version: \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/p' app/pubspec.yaml)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check tag matches pubspec.yaml version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$TAG_VERSION" != "${{ steps.get_version.outputs.version }}" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match pubspec.yaml version ${{ steps.get_version.outputs.version }}"
+            exit 1
+          fi
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+
+      - name: Assemble release assets with Glide naming
+        run: |
+          set -e
+          VERSION="${{ steps.get_version.outputs.version }}"
+          mkdir -p release
+          cp artifacts/apk-result/app-armeabi-v7a-release.apk "release/Glide-$VERSION-android-arm32v7.apk"
+          cp artifacts/apk-result/app-arm64-v8a-release.apk "release/Glide-$VERSION-android-arm64v8.apk"
+          cp artifacts/apk-result/app-x86_64-release.apk "release/Glide-$VERSION-android-x64.apk"
+          cp artifacts/appimage-x86-64-result/*.AppImage "release/Glide-$VERSION-linux-x86-64.AppImage"
+          cp artifacts/deb-x86-64-result/*.deb "release/Glide-$VERSION-linux-x86-64.deb"
+          cp artifacts/windows-zip-x86-64-unsigned/*.zip "release/Glide-$VERSION-windows-x86-64.zip"
+          cp artifacts/windows-exe-x86-64-unsigned/*.exe "release/Glide-$VERSION-windows-x86-64.exe"
+          ls -la release
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          name: v${{ steps.get_version.outputs.version }}
+          files: release/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
