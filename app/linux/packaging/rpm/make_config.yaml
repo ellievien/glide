@@ -6,7 +6,7 @@ packagerEmail: hello@neverheard.studio
 buildArch: x86_64
 license: MIT
 
-icon: assets/img/logo-512.png
+icon: assets/packaging/logo-512.png
 
 requires:
   - libappindicator
