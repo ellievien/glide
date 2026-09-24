@@ -76,7 +76,7 @@ jobs:
         run: |
           Remove-Item build/windows/x64/runner/Release/glide_msix_helper.msix
           Remove-Item build/windows/x64/runner/Release/install_msix_helper.ps1
-          Remove-Item build/windows/x64/runner/Release/localsend_app.exe.manifest
+          Remove-Item build/windows/x64/runner/Release/glide.exe.manifest
 
       - name: Zip compiled files
         working-directory: app

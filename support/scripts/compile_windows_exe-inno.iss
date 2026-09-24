@@ -16,7 +16,7 @@
 #define MyAppPublisher "Neverheard Studio"
 ; TODO(Neverheard Studio): replace with a real project URL once one exists.
 #define MyAppURL "https://neverheard.studio"
-#define MyAppExeName "localsend_app.exe"
+#define MyAppExeName "glide.exe"
 #define MyAppMsixHelper "glide_msix_helper.msix"
 
 [Setup]
@@ -108,7 +108,7 @@ Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -Command Add-Ap
 [UninstallRun]
 #ifndef SkipMsixHelper
 ; TODO(Neverheard Studio): "LocalSend.App" is the real MSIX package identity emitted by
-; support/build/msix/content/AppxManifest.xml (must match app/windows/localsend_app.exe.manifest's
+; support/build/msix/content/AppxManifest.xml (must match app/windows/glide.exe.manifest's
 ; packageName). Update this alongside that identity once Glide's own MSIX package identity is assigned.
 Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -Command Get-AppxPackage LocalSend.App | Remove-AppxPackage"; Flags: nowait runhidden
 #endif

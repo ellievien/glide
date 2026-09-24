@@ -81,7 +81,7 @@ jobs:
         continue-on-error: true
         run: |
           $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\10.*\x64\signtool.exe' | Select-Object -Last 1
-          & $signtool.FullName verify /pa /v app\build\windows\x64\runner\Release\localsend_app.exe
+          & $signtool.FullName verify /pa /v app\build\windows\x64\runner\Release\glide.exe
 
       - name: Create empty settings.json
         working-directory: app
@@ -100,7 +100,7 @@ jobs:
         run: |
           Remove-Item build/windows/x64/runner/Release/glide_msix_helper.msix
           Remove-Item build/windows/x64/runner/Release/install_msix_helper.ps1
-          Remove-Item build/windows/x64/runner/Release/localsend_app.exe.manifest
+          Remove-Item build/windows/x64/runner/Release/glide.exe.manifest
 
       - name: Zip compiled files
         working-directory: app
