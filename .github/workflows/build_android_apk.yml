@@ -84,3 +84,16 @@ jobs:
             ${{ env.APK_BUILD_DIR }}/app/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
             ${{ env.APK_BUILD_DIR }}/app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
             ${{ env.APK_BUILD_DIR }}/app/build/app/outputs/flutter-apk/app-x86_64-release.apk
+
+      # Google Play only accepts App Bundles; the upload key is the same keystore
+      # as the APKs. Kept as a workflow artifact only (not a release asset) since
+      # an .aab is useless to end users.
+      - name: Build App Bundle
+        working-directory: ${{ env.APK_BUILD_DIR }}/app
+        run: flutter build appbundle
+
+      - name: Upload App Bundle
+        uses: actions/upload-artifact@v6
+        with:
+          name: aab-result
+          path: ${{ env.APK_BUILD_DIR }}/app/build/app/outputs/bundle/release/app-release.aab
