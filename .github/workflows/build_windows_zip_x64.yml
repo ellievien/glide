@@ -104,11 +104,11 @@ jobs:
 
       - name: Zip compiled files
         working-directory: app
-        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "LocalSend-${{ needs.build.outputs.version }}-windows-x86-64.zip"
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "Glide-${{ needs.build.outputs.version }}-windows-x86-64.zip"
 
       - name: Upload signed zip
         uses: actions/upload-artifact@v6
         with:
           name: windows-zip-x86-64-result
-          path: app/LocalSend-${{ needs.build.outputs.version }}-windows-x86-64.zip
+          path: app/Glide-${{ needs.build.outputs.version }}-windows-x86-64.zip
           if-no-files-found: error

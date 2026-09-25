@@ -11,5 +11,4 @@ source code in this repository using GitHub Actions ([release workflow](.github/
 
 ## Privacy
 
-<!-- TODO(Neverheard Studio): publish a privacy policy and link it here. -->
-Glide's privacy policy is not yet published.
+Glide's privacy policy is published at https://glide-app-neverheard-s-projects.vercel.app/privacy (source: `docs/privacy.html`).
