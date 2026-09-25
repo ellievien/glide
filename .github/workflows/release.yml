@@ -107,7 +107,7 @@ jobs:
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
           asset_path: app-armeabi-v7a-release.apk
-          asset_name: LocalSend-${{ steps.get_version.outputs.version }}-android-arm32v7.apk
+          asset_name: Glide-${{ steps.get_version.outputs.version }}-android-arm32v7.apk
           asset_content_type: application/vnd.android.package-archive
 
       - name: Upload Release Asset (arm64v8)
@@ -117,7 +117,7 @@ jobs:
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
           asset_path: app-arm64-v8a-release.apk
-          asset_name: LocalSend-${{ steps.get_version.outputs.version }}-android-arm64v8.apk
+          asset_name: Glide-${{ steps.get_version.outputs.version }}-android-arm64v8.apk
           asset_content_type: application/vnd.android.package-archive
 
       - name: Upload Release Asset (x64)
@@ -127,7 +127,7 @@ jobs:
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
           asset_path: app-x86_64-release.apk
-          asset_name: LocalSend-${{ steps.get_version.outputs.version }}-android-x64.apk
+          asset_name: Glide-${{ steps.get_version.outputs.version }}-android-x64.apk
           asset_content_type: application/vnd.android.package-archive
 
       # TAR.GZ (x86_64)
@@ -150,7 +150,7 @@ jobs:
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
           asset_path: result.tar.gz
-          asset_name: LocalSend-${{ steps.get_version.outputs.version }}-linux-x86-64.tar.gz
+          asset_name: Glide-${{ steps.get_version.outputs.version }}-linux-x86-64.tar.gz
           asset_content_type: application/gzip
 
       # TAR.GZ (arm_64)
@@ -173,7 +173,7 @@ jobs:
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
           asset_path: result.tar.gz
-          asset_name: LocalSend-${{ steps.get_version.outputs.version }}-linux-arm-64.tar.gz
+          asset_name: Glide-${{ steps.get_version.outputs.version }}-linux-arm-64.tar.gz
           asset_content_type: application/gzip
 
       # DEB (x86_64)
@@ -193,7 +193,7 @@ jobs:
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
           asset_path: result.deb
-          asset_name: LocalSend-${{ steps.get_version.outputs.version }}-linux-x86-64.deb
+          asset_name: Glide-${{ steps.get_version.outputs.version }}-linux-x86-64.deb
           asset_content_type: application/vnd.debian.binary-package
 
       # DEB (arm_64)
@@ -213,7 +213,7 @@ jobs:
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
           asset_path: result.deb
-          asset_name: LocalSend-${{ steps.get_version.outputs.version }}-linux-arm-64.deb
+          asset_name: Glide-${{ steps.get_version.outputs.version }}-linux-arm-64.deb
           asset_content_type: application/vnd.debian.binary-package
 
       # APPIMAGE (x86_64)
@@ -241,7 +241,7 @@ jobs:
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
           asset_path: result.AppImage
-          asset_name: LocalSend-${{ steps.get_version.outputs.version }}-linux-x86-64.AppImage
+          asset_name: Glide-${{ steps.get_version.outputs.version }}-linux-x86-64.AppImage
           asset_content_type: application/x-appimage
 
       # WINDOWS ZIP (x86_64)
@@ -261,7 +261,7 @@ jobs:
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
           asset_path: result.zip
-          asset_name: LocalSend-${{ steps.get_version.outputs.version }}-windows-x86-64.zip
+          asset_name: Glide-${{ steps.get_version.outputs.version }}-windows-x86-64.zip
           asset_content_type: application/zip
 
       # WINDOWS ZIP (arm_64)
@@ -281,7 +281,7 @@ jobs:
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
           asset_path: result.zip
-          asset_name: LocalSend-${{ steps.get_version.outputs.version }}-windows-arm-64.zip
+          asset_name: Glide-${{ steps.get_version.outputs.version }}-windows-arm-64.zip
           asset_content_type: application/zip
 
       # WINDOWS EXE (x86_64)
@@ -301,7 +301,7 @@ jobs:
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
           asset_path: result.exe
-          asset_name: LocalSend-${{ steps.get_version.outputs.version }}-windows-x86-64.exe
+          asset_name: Glide-${{ steps.get_version.outputs.version }}-windows-x86-64.exe
           asset_content_type: application/vnd.microsoft.portable-executable
 
       # LINUX CLI (x86_64)
@@ -317,8 +317,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
-          asset_path: cli-linux-x86-64-result/LocalSend-CLI-${{ steps.get_version.outputs.version }}-linux-x86-64.tar.gz
-          asset_name: LocalSend-CLI-${{ steps.get_version.outputs.version }}-linux-x86-64.tar.gz
+          asset_path: cli-linux-x86-64-result/Glide-CLI-${{ steps.get_version.outputs.version }}-linux-x86-64.tar.gz
+          asset_name: Glide-CLI-${{ steps.get_version.outputs.version }}-linux-x86-64.tar.gz
           asset_content_type: application/gzip
 
       # LINUX CLI (arm_64)
@@ -334,8 +334,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
-          asset_path: cli-linux-arm-64-result/LocalSend-CLI-${{ steps.get_version.outputs.version }}-linux-arm-64.tar.gz
-          asset_name: LocalSend-CLI-${{ steps.get_version.outputs.version }}-linux-arm-64.tar.gz
+          asset_path: cli-linux-arm-64-result/Glide-CLI-${{ steps.get_version.outputs.version }}-linux-arm-64.tar.gz
+          asset_name: Glide-CLI-${{ steps.get_version.outputs.version }}-linux-arm-64.tar.gz
           asset_content_type: application/gzip
 
       # WINDOWS CLI EXE (x86_64)
@@ -355,7 +355,7 @@ jobs:
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
           asset_path: result-cli.exe
-          asset_name: LocalSend-CLI-${{ steps.get_version.outputs.version }}-windows-x86-64.exe
+          asset_name: Glide-CLI-${{ steps.get_version.outputs.version }}-windows-x86-64.exe
           asset_content_type: application/vnd.microsoft.portable-executable
 
       # WINDOWS CLI EXE (arm_64)
@@ -375,5 +375,5 @@ jobs:
         with:
           upload_url: ${{ steps.draft_release.outputs.upload_url }}
           asset_path: result-cli.exe
-          asset_name: LocalSend-CLI-${{ steps.get_version.outputs.version }}-windows-arm-64.exe
+          asset_name: Glide-CLI-${{ steps.get_version.outputs.version }}-windows-arm-64.exe
           asset_content_type: application/vnd.microsoft.portable-executable

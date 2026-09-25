@@ -1,50 +1,71 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Glide — Support</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; max-width: 720px; margin: 0 auto; padding: 2rem 1.25rem 4rem; line-height: 1.6; color: #1c1c1e; }
-  h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
-  h2 { font-size: 1.15rem; margin-top: 2rem; }
-  .subtitle { color: #6e6e73; font-size: 0.95rem; margin-bottom: 2rem; }
-  a { color: #0066cc; }
-  code { background: #f2f2f7; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
-  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #d2d2d7; color: #6e6e73; font-size: 0.9rem; }
-</style>
+<meta name="description" content="Help with Glide: devices not finding each other, slow or failed transfers, where received files go, and how to contact us." />
+
+<link rel="icon" href="/assets/icons/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png" />
+
+<link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
-<h1>Glide Support</h1>
-<p class="subtitle">Glide, by Neverheard Studio</p>
 
-<p>Glide sends files directly between your devices over your local network — no cloud, no account, no size limits. This page covers common questions and how to reach us.</p>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="/">
+      <img src="/assets/logo/glide-symbol.svg" alt="" width="28" height="22" />
+      Glide
+    </a>
+    <nav class="site-nav" aria-label="Primary">
+      <a href="/#features">Features</a>
+      <a href="/#downloads">Downloads</a>
+      <a href="/support">Support</a>
+      <a href="/privacy">Privacy</a>
+    </nav>
+  </div>
+</header>
 
-<h2>Two devices can't find each other</h2>
-<ul>
-  <li>Make sure both devices are connected to the <strong>same Wi-Fi network</strong>. Glide discovers devices on the local network only; it cannot find devices on cellular data, a different Wi-Fi network, or across a guest/isolated network.</li>
-  <li>Some routers isolate devices from each other for security ("client isolation" or "AP isolation"). If discovery doesn't work on a given network, check the router's settings for this option.</li>
-  <li>Make sure Glide has been granted local network permission: on iOS, check <code>Settings &gt; Glide &gt; Local Network</code> is turned on.</li>
-  <li>Try closing and reopening Glide on both devices to restart discovery.</li>
-</ul>
+<main class="simple-page">
+  <a class="back-link" href="/">&larr; Back to Glide</a>
 
-<h2>A transfer failed or was slow</h2>
-<ul>
-  <li>Transfers happen directly between devices, so speed depends on your Wi-Fi network, not on an internet connection. A weak Wi-Fi signal on either device will slow a transfer down.</li>
-  <li>Keep both devices on-screen (not locked) and within Wi-Fi range for the duration of the transfer.</li>
-</ul>
+  <h1>Support</h1>
+  <p class="updated">Glide, by Neverheard Studio</p>
 
-<h2>Saving received files</h2>
-<p>Received photos and videos can be saved to your device's photo library from the transfer screen. Other file types are kept in Glide's own file storage, which you can browse from the app.</p>
+  <p>Glide sends files directly between your devices over your local network — no cloud, no account, no size limits. This page covers the most common questions and how to reach us.</p>
 
-<h2>Still need help?</h2>
-<p>Email <a href="mailto:nvhstudio@proton.me">nvhstudio@proton.me</a> and describe what happened, including your device model and OS version — we'll get back to you.</p>
+  <h2>Two devices can't find each other</h2>
+  <ul>
+    <li>Make sure both devices are on the <strong>same Wi-Fi network</strong>. Glide only discovers devices on the local network; it cannot find devices on cellular data, on a different Wi-Fi network, or across a guest/isolated network.</li>
+    <li>Some routers isolate devices from each other ("client isolation" or "AP isolation"). If discovery doesn't work on a particular network, check the router's settings for that option.</li>
+    <li>Make sure Glide has local network permission: on iOS, check <code>Settings &gt; Glide &gt; Local Network</code> is on; on macOS, check <code>System Settings &gt; Privacy &amp; Security &gt; Local Network</code>.</li>
+    <li>On Windows and Linux, allow incoming TCP and UDP on port <code>53317</code> in your firewall.</li>
+    <li>Close and reopen Glide on both devices to restart discovery.</li>
+  </ul>
 
-<h2>Privacy</h2>
-<p>See the <a href="/privacy">Privacy Policy</a> for details on what data Glide does (and does not) collect.</p>
+  <h2>A transfer failed or was slow</h2>
+  <ul>
+    <li>Transfers go directly between the two devices, so speed depends on your Wi-Fi, not on an internet connection. A weak signal on either device slows the transfer down.</li>
+    <li>Keep both devices unlocked, with Glide open, and within Wi-Fi range for the whole transfer.</li>
+  </ul>
 
-<footer>
-  &copy; 2026 Neverheard Studio
+  <h2>Where received files go</h2>
+  <p>On iOS, received photos and videos can be saved to your photo library from the transfer screen; other files are kept in Glide's own storage, which you can browse from the app. On Android, macOS, Windows, and Linux, files land in your Downloads folder by default — you can pick a different folder in <code>Settings &gt; Receive</code>.</p>
+
+  <h2>Still need help?</h2>
+  <p>Email <a href="mailto:nvhstudio@proton.me">nvhstudio@proton.me</a> and describe what happened, including your device model and OS version — we'll get back to you.</p>
+
+  <h2>Privacy</h2>
+  <p>See the <a href="/privacy">Privacy Policy</a> for what data Glide does (and does not) collect.</p>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p class="footer-legal">&copy; 2026 Neverheard Studio.</p>
+  </div>
 </footer>
+
 </body>
 </html>
