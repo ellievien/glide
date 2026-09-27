@@ -11,4 +11,4 @@ source code in this repository using GitHub Actions ([release workflow](.github/
 
 ## Privacy
 
-Glide's privacy policy is published at https://glide-app-neverheard-s-projects.vercel.app/privacy (source: `docs/privacy.html`).
+Glide's privacy policy is published at https://glidesend.app/privacy (source: `docs/privacy.html`).
