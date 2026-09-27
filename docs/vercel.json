@@ -3,6 +3,12 @@
   "trailingSlash": false,
   "redirects": [
     {
+      "source": "/",
+      "has": [{ "type": "host", "value": "www.glidesend.app" }],
+      "destination": "https://glidesend.app/",
+      "permanent": true
+    },
+    {
       "source": "/:path*",
       "has": [{ "type": "host", "value": "www.glidesend.app" }],
       "destination": "https://glidesend.app/:path*",
