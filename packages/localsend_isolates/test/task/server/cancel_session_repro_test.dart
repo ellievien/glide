@@ -71,6 +71,7 @@ void main() {
         pages: WebPages(),
       ),
       showToken: null,
+      discoverable: true,
     );
 
     _ReceiveSession? session;
