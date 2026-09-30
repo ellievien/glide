@@ -6,6 +6,10 @@ name: Build macOS DMG (unsigned)
 on:
   workflow_dispatch:
   workflow_call:
+  pull_request:
+    paths:
+      - .github/workflows/build_macos_dmg_unsigned.yml
+      - support/scripts/compile_mac_dmg_unsigned.sh
 
 env:
   FLUTTER_VERSION: "3.41.9"
