@@ -38,6 +38,20 @@ export FLUTTER_XCODE_ENABLE_HARDENED_RUNTIME=NO
   $FLUTTER build macos --release
 )
 
+# LaunchAtLogin's copy-helper-swiftpm.sh edits the helper's Info.plist, re-signs
+# it with EXPANDED_CODE_SIGN_IDENTITY_NAME and ignores a failure; with ad-hoc
+# signing that leaves the helper with a broken signature ("invalid Info.plist").
+# Re-sign it with the entitlements that script uses, then re-seal the app around
+# it, keeping the entitlements Xcode signed the app with.
+HELPER="$APP/Contents/Library/LoginItems/LaunchAtLoginHelper.app"
+HELPER_ENTITLEMENTS="app/build/macos/Build/Products/Release/LaunchAtLogin_LaunchAtLogin.bundle/Contents/Resources/LaunchAtLogin.entitlements"
+if [ -d "$HELPER" ]; then
+  echo
+  echo "Re-signing LaunchAtLoginHelper..."
+  codesign --force --sign - --entitlements "$HELPER_ENTITLEMENTS" "$HELPER"
+  codesign --force --sign - --preserve-metadata=entitlements "$APP"
+fi
+
 echo
 echo "Verifying the app's signature..."
 if ! codesign --verify --deep --strict --verbose=2 "$APP"; then
