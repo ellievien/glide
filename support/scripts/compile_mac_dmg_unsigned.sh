@@ -6,7 +6,8 @@
 # end explain how to allow it. To hand Glide to other people, use
 # compile_mac_dmg.sh (Developer ID signing + notarization) instead.
 #
-# Prerequisites: Xcode, CocoaPods, rustup and fvm (or set FLUTTER to another
+# Prerequisites: Xcode 26 or later (plugins such as connectivity_plus need the
+# macOS 26 SDK), CocoaPods, rustup and fvm (or set FLUTTER to another
 # flutter command, e.g. FLUTTER=flutter in CI).
 # Run from anywhere; the DMG is written to app/.
 
