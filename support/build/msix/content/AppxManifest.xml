@@ -24,7 +24,7 @@
   <!-- TODO(Neverheard Studio): Identity Name/Publisher must match app/windows/glide.exe.manifest's
        packageName and Glide's real code-signing certificate subject once assigned; left unchanged here
        to avoid breaking that cross-file identity match. -->
-  <Identity Name="LocalSend.App" Version="1.18.2.0"
+  <Identity Name="LocalSend.App" Version="1.0.0.0"
             Publisher="CN=Neverheard Studio, O=Neverheard Studio, L=Berlin, C=DE" ProcessorArchitecture="x64" />
   <Properties>
     <DisplayName>Glide MSIX Helper</DisplayName>
