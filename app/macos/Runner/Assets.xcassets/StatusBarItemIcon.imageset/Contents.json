@@ -1,15 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "logo-32-black.png",
+      "filename" : "glide-symbol-template.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "glide-symbol-template@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
+      "filename" : "glide-symbol-template@3x.png",
       "idiom" : "universal",
       "scale" : "3x"
     }
@@ -17,5 +19,8 @@
   "info" : {
     "author" : "xcode",
     "version" : 1
+  },
+  "properties" : {
+    "template-rendering-intent" : "template"
   }
 }

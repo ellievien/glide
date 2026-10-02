@@ -152,7 +152,7 @@ jobs:
         run: |
           APP_COPYRIGHT=$(grep -o 'Copyright (C) [^"]*' app/windows/runner/Runner.rc)
           CLI_COPYRIGHT=$(grep -o 'Copyright (C) [^"]*' cli/build.rs)
-          MACOS_COPYRIGHT=$(sed -n 's/^PRODUCT_COPYRIGHT = //p' app/macos/Runner/Configs/AppInfo.xcconfig | sed 's/©/(C)/')
+          MACOS_COPYRIGHT=$(sed -n 's/^PRODUCT_COPYRIGHT = //p' app/macos/Runner/Configs/AppInfo.xcconfig | sed 's/©/(C)/g')
           APP_YEAR=$(echo "$APP_COPYRIGHT" | grep -o '[0-9]\{4\}' | tail -1)
           ROOT_LICENSE_YEAR=$(grep -o 'Copyright [0-9][0-9-]* Tien Do Nam' LICENSE | grep -o '[0-9]\{4\}' | tail -1)
           TYPED_LICENSE_YEAR=$(grep -o 'Copyright [0-9][0-9-]* Tien Do Nam' packages/typed_isolates/LICENSE | grep -o '[0-9]\{4\}' | tail -1)
