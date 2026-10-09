@@ -8,7 +8,7 @@ fn main() {
         res.set("CompanyName", "Tien Do Nam");
         res.set("OriginalFilename", "glide-cli.exe");
         res.set("InternalName", "glide-cli");
-        res.set("LegalCopyright", "Copyright (C) 2022-2026 Tien Do Nam");
+        res.set("LegalCopyright", "Copyright (C) 2022-2026 Neverheard Studio. Based on LocalSend, Copyright (C) 2022-2026 Tien Do Nam and contributors.");
         // FileVersion/ProductVersion are derived from CARGO_PKG_VERSION automatically.
         res.compile().expect("failed to compile Windows resources");
     }
