@@ -22,7 +22,9 @@ and HTTPS encryption. Unlike messaging apps that rely on external servers, Glide
 an internet connection or third-party servers, making it a fast and reliable solution for local
 communication.
 
-Glide is not yet published on any app store or package manager.
+Glide is available on the [App Store](https://apps.apple.com/app/id6814551520) for iPhone, iPad, and Mac.
+Downloads for Android, Windows, and Linux are at [glidesend.app](https://glidesend.app/#downloads).
+It is not yet published on Google Play or any package manager.
 
 ## Setup
 
