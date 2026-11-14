@@ -14,7 +14,7 @@
 const GITHUB_RELEASE_BASE = "https://github.com/ellievien/glide/releases/latest/download";
 
 window.GLIDE_DOWNLOADS = [
-  { platform: "ios", label: "App Store", url: "", version: "1.0.0", status: "coming-soon" },
+  { platform: "ios", label: "App Store", url: "https://apps.apple.com/app/id6814551520", version: "1.0.0", status: "available" },
   { platform: "macos", label: "Mac App Store", url: "https://apps.apple.com/app/id6814551520?platform=mac", version: "1.0.0", status: "available" },
   { platform: "android", label: "Google Play", url: "", version: "1.0.0", status: "coming-soon" },
   { platform: "android", label: "APK (direct download)", url: `${GITHUB_RELEASE_BASE}/Glide-1.0.0-android-arm64v8.apk`, version: "1.0.0", status: "available" },
