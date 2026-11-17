@@ -1,0 +1,42 @@
+name: Build macOS DMG (unsigned)
+
+# Ad-hoc signed and not notarized: for installing on your own Macs, see
+# support/scripts/compile_mac_dmg_unsigned.sh.
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  pull_request:
+    paths:
+      - .github/workflows/build_macos_dmg_unsigned.yml
+      - support/scripts/compile_mac_dmg_unsigned.sh
+
+env:
+  FLUTTER_VERSION: "3.41.9"
+
+jobs:
+  build:
+    runs-on: macos-26 # Xcode 26: connectivity_plus needs the macOS 26 SDK
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: "stable"
+
+      - name: Install Rust toolchain
+        working-directory: packages/localsend_isolates
+        run: rustup toolchain install --profile minimal # version and targets from rust-toolchain.toml
+
+      - name: Build DMG
+        env:
+          FLUTTER: flutter
+        run: bash support/scripts/compile_mac_dmg_unsigned.sh
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v6
+        with:
+          name: macos-dmg-unsigned-result
+          path: app/Glide-*-macos-unsigned.dmg

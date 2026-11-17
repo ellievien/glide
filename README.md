@@ -153,6 +153,12 @@ fvm flutter build ipa
 fvm flutter build macos
 ```
 
+**Unsigned DMG for testing** (ad-hoc signed, not notarized; also built by the "Build macOS DMG (unsigned)" workflow)
+
+```bash
+bash support/scripts/compile_mac_dmg_unsigned.sh
+```
+
 ### Windows
 
 **Traditional**
