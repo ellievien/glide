@@ -100,6 +100,7 @@ const _deviceModel = 'ls_device_model';
 const _shareViaLinkAutoAccept = 'ls_share_via_link_auto_accept';
 const _receiveViaLinkAutoAccept = 'ls_receive_via_link_auto_accept';
 const _createChecksums = 'ls_create_checksums';
+const _nearbyBluetooth = 'glide_nearby_bluetooth';
 const _verifyChecksums = 'ls_verify_checksums';
 const _advancedSettingsKey = 'ls_advanced_settings';
 
@@ -425,6 +426,14 @@ class PersistenceService {
 
   Future<void> setCreateChecksums(bool createChecksums) async {
     await _prefs.setBool(_createChecksums, createChecksums);
+  }
+
+  bool getNearbyBluetooth() {
+    return _prefs.getBool(_nearbyBluetooth) ?? true;
+  }
+
+  Future<void> setNearbyBluetooth(bool enabled) async {
+    await _prefs.setBool(_nearbyBluetooth, enabled);
   }
 
   bool getVerifyChecksums() {

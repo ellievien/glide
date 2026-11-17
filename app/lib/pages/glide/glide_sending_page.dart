@@ -14,6 +14,7 @@ import 'package:glide/provider/animation_provider.dart';
 import 'package:glide/provider/device_info_provider.dart';
 import 'package:glide/provider/favorites_provider.dart';
 import 'package:glide/provider/file_transfer_provider.dart';
+import 'package:glide/provider/network/nearby/nearby_service.dart';
 import 'package:glide/provider/network/send_provider.dart';
 import 'package:glide/provider/network/server/server_provider.dart';
 import 'package:glide/provider/send_history_provider.dart';
@@ -281,6 +282,7 @@ class _GlideSendingPageState extends State<GlideSendingPage> with Refena {
     final currentFile = _files.isNotEmpty ? _files[_cycleIndex % _files.length] : null;
     final extension = currentFile != null ? p.extension(currentFile.fileName) : '';
     final isWaiting = status == SessionStatus.waiting;
+    final connectingNearby = ref.watch(nearbyProvider.select((s) => s.connectingSessions.contains(widget.sessionId))) && !receiving;
 
     final title = receiving ? t.glide.sending.receivingFrom(device: otherLabel) : t.glide.sending.sendingTo(device: otherLabel);
     final cancelLabel = receiving ? t.glide.sending.stopReceiving : t.glide.sending.cancelTransfer;
@@ -375,7 +377,7 @@ class _GlideSendingPageState extends State<GlideSendingPage> with Refena {
                                     Text(isWaiting ? '0%' : '${(progress * 100).round()}%', style: GT.bigNumber),
                                     Text(
                                       isWaiting
-                                          ? t.glide.sending.waitingToAccept
+                                          ? (connectingNearby ? t.glide.nearby.connecting : t.glide.sending.waitingToAccept)
                                           : (_remainingSeconds != null ? t.glide.sending.secondsLeft(seconds: _remainingSeconds!) : ' '),
                                       style: GT.secondary,
                                     ),

@@ -1,0 +1,891 @@
+// Nearby: finds Glide devices over Bluetooth Low Energy while the app is open,
+// even when they are not on the same network, and sets up a temporary Wi-Fi
+// Direct network for the transfer itself, torn down once it is over.
+//
+// Roles, per transfer:
+// - The sender is the BLE central. It reads the receiver's [NearbyPeerInfo]
+//   and writes a [NearbyRequest] to the control characteristic.
+// - The receiver is the BLE peripheral. It answers on the same
+//   characteristic, which the sender polls.
+// - Whoever can host (Android) creates the Wi-Fi Direct group, preferring
+//   the receiver; the other one joins it. The regular HTTP transfer then runs
+//   over that network, pinned to the fingerprint read over BLE.
+// - When the send session ends, the sender writes [NearbyEndRequest] and both
+//   sides leave the network. A watchdog on the receiver covers senders that
+//   disappear without saying so.
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:collection/collection.dart';
+import 'package:flutter/widgets.dart';
+import 'package:glide/gen/strings.g.dart';
+import 'package:glide/model/persistence/device_visibility.dart';
+import 'package:glide/model/state/send/send_session_state.dart';
+import 'package:glide/provider/device_info_provider.dart';
+import 'package:glide/provider/device_visibility_provider.dart';
+import 'package:glide/provider/favorites_provider.dart';
+import 'package:glide/provider/network/nearby/nearby_protocol.dart';
+import 'package:glide/provider/network/nearby/wifi_link.dart';
+import 'package:glide/provider/network/nearby_devices_provider.dart';
+import 'package:glide/provider/network/send_provider.dart';
+import 'package:glide/provider/network/server/server_provider.dart';
+import 'package:glide/provider/security_provider.dart';
+import 'package:glide/provider/settings_provider.dart';
+import 'package:localsend_isolates/constants.dart';
+import 'package:localsend_isolates/model/device.dart';
+import 'package:localsend_isolates/model/session_status.dart';
+import 'package:logging/logging.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:refena_flutter/refena_flutter.dart';
+import 'package:universal_ble/universal_ble.dart';
+
+final _logger = Logger('Nearby');
+
+/// A device that is no longer advertising disappears from the radar after this.
+const _peerTimeout = Duration(seconds: 45);
+
+/// Scans are restarted periodically: some platforms report a device only once
+/// per scan, which would otherwise look like the device went away.
+const _scanCycle = Duration(seconds: 20);
+
+/// The info of a device is read again after this, to pick up a renamed device.
+const _infoMaxAge = Duration(minutes: 5);
+
+/// The receiver tears its temporary network down when no transfer has been
+/// running on it for this long (e.g. the sender vanished without "end").
+const _receiverIdleTimeout = Duration(minutes: 2);
+
+const _bleOperationTimeout = Duration(seconds: 10);
+
+final nearbyProvider = NotifierProvider<NearbyService, NearbyState>((ref) => NearbyService());
+
+enum NearbyProblem {
+  /// Bluetooth is turned off or not authorized.
+  bluetoothUnavailable,
+
+  /// A permission needed for Bluetooth or Wi-Fi Direct was denied.
+  permissionDenied,
+}
+
+class NearbyState {
+  /// Bluetooth discovery is running.
+  final bool running;
+
+  /// Why discovery is not running although it is enabled, if known.
+  final NearbyProblem? problem;
+
+  /// Send sessions currently setting up their temporary network.
+  final Set<String> connectingSessions;
+
+  const NearbyState({required this.running, required this.problem, required this.connectingSessions});
+
+  NearbyState copyWith({bool? running, NearbyProblem? problem, bool clearProblem = false, Set<String>? connectingSessions}) {
+    return NearbyState(
+      running: running ?? this.running,
+      problem: clearProblem ? null : (problem ?? this.problem),
+      connectingSessions: connectingSessions ?? this.connectingSessions,
+    );
+  }
+}
+
+class NearbyException implements Exception {
+  final String message;
+
+  const NearbyException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+/// The temporary network of one send session, as seen by the sender.
+class NearbyLink {
+  final String bleId;
+
+  /// Who created the network; the other side joined it.
+  final NearbyWifiHost host;
+
+  /// Where the receiver's HTTP server answers on the temporary network.
+  final String ip;
+  final int port;
+  final bool https;
+
+  const NearbyLink({required this.bleId, required this.host, required this.ip, required this.port, required this.https});
+}
+
+class _Peer {
+  final String bleId;
+  DateTime lastSeen;
+  NearbyPeerInfo? info;
+  DateTime? resolvedAt;
+  DateTime? retryAfter;
+  int failures = 0;
+
+  /// This is our own advertisement (seen on platforms that report it).
+  bool own = false;
+
+  _Peer(this.bleId, this.lastSeen);
+}
+
+/// The temporary network on the receiving side.
+class _ReceiverNetwork {
+  final NearbyWifiHost role;
+  final String ssid;
+
+  /// The address the sender was told to dial.
+  final String ip;
+
+  /// Fingerprints of the senders that asked for this network and did not send
+  /// "end" yet.
+  final Set<String> senders;
+  DateTime lastActive;
+
+  _ReceiverNetwork({required this.role, required this.ssid, required this.ip, required this.senders, required this.lastActive});
+}
+
+class NearbyService extends Notifier<NearbyState> {
+  final WifiLink _wifi = WifiLink.forPlatform();
+
+  final _peers = <String, _Peer>{};
+  final _resolveQueue = <String>[];
+  bool _resolving = false;
+
+  /// Paused while a sender talks to a receiver: one BLE connection at a time
+  /// keeps the slower stacks (Windows, Linux) out of trouble.
+  int _exchangeCount = 0;
+
+  final _assemblers = <String, FrameAssembler>{};
+  final _responses = <String, NearbyResponse>{};
+  _ReceiverNetwork? _receiverNetwork;
+
+  /// Send session ID -> its temporary network.
+  final _senderLinks = <String, NearbyLink>{};
+
+  bool _starting = false;
+  bool _advertising = false;
+  bool _availabilityListenerSet = false;
+  Timer? _cycleTimer;
+  Timer? _watchdogTimer;
+  StreamSubscription<NotifierEvent<Map<String, SendSessionState>>>? _sendSubscription;
+  AppLifecycleListener? _lifecycleListener;
+
+  @override
+  NearbyState init() => const NearbyState(running: false, problem: null, connectingSessions: {});
+
+  @override
+  void dispose() {
+    _cycleTimer?.cancel();
+    _watchdogTimer?.cancel();
+    unawaited(_sendSubscription?.cancel());
+    _lifecycleListener?.dispose();
+    super.dispose();
+  }
+
+  static bool get isSupportedPlatform => Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+
+  /// Starts advertising and scanning if enabled in the settings.
+  /// Safe to call repeatedly; called on app start and whenever a relevant
+  /// setting changes.
+  Future<void> start() async {
+    if (!isSupportedPlatform || _starting || state.running) {
+      return;
+    }
+    if (!ref.read(settingsProvider).nearbyBluetooth) {
+      return;
+    }
+    _starting = true;
+    try {
+      _sendSubscription ??= ref.stream(sendProvider).listen((event) => _onSendSessionsChanged(event.next));
+      _lifecycleListener ??= AppLifecycleListener(
+        onPause: () => unawaited(_pauseInBackground()),
+        onResume: () => unawaited(start()),
+      );
+
+      await _wifi.init();
+      _logger.info('Wi-Fi capabilities: ${_wifi.capabilities}');
+
+      if (!await _requestPermissions()) {
+        state = state.copyWith(problem: NearbyProblem.permissionDenied);
+        return;
+      }
+
+      if (!_availabilityListenerSet) {
+        _availabilityListenerSet = true;
+        UniversalBle.onAvailabilityChange = _onAvailabilityChange;
+      }
+      final availability = await UniversalBle.getBluetoothAvailabilityState();
+      if (availability != AvailabilityState.poweredOn) {
+        _logger.info('Bluetooth is not available: $availability');
+        state = state.copyWith(problem: NearbyProblem.bluetoothUnavailable);
+        return;
+      }
+
+      await _startAdvertising();
+      await _startScan();
+      _cycleTimer?.cancel();
+      _cycleTimer = Timer.periodic(_scanCycle, (_) => unawaited(_onCycle()));
+      state = state.copyWith(running: true, clearProblem: true);
+    } catch (e, st) {
+      _logger.warning('Could not start Bluetooth discovery', e, st);
+      state = state.copyWith(problem: NearbyProblem.bluetoothUnavailable);
+    } finally {
+      _starting = false;
+    }
+  }
+
+  /// Stops advertising and scanning and removes every device found over BLE.
+  /// Running transfers and their networks are not affected.
+  Future<void> stop() async {
+    _cycleTimer?.cancel();
+    _cycleTimer = null;
+    state = state.copyWith(running: false);
+    try {
+      await UniversalBle.stopScan();
+    } catch (e) {
+      _logger.fine('stopScan failed', e);
+    }
+    await _stopAdvertising();
+    for (final peer in _peers.values) {
+      final fingerprint = peer.info?.fingerprint;
+      if (fingerprint != null) {
+        ref.redux(nearbyDevicesProvider).dispatch(UnregisterBluetoothDeviceAction(fingerprint));
+      }
+    }
+    _peers.clear();
+    _resolveQueue.clear();
+  }
+
+  /// Applies a change of the "Nearby" setting.
+  Future<void> setEnabled(bool enabled) async {
+    await ref.notifier(settingsProvider).setNearbyBluetooth(enabled);
+    if (enabled) {
+      await start();
+    } else {
+      await stop();
+      state = state.copyWith(clearProblem: true);
+    }
+  }
+
+  /// Advertises or stops advertising after the visibility changed.
+  Future<void> refreshAdvertising() async {
+    if (!state.running) {
+      return;
+    }
+    await _stopAdvertising();
+    await _startAdvertising();
+  }
+
+  Future<void> _pauseInBackground() async {
+    // Mobile apps cannot keep a BLE peripheral useful in the background, and a
+    // receive server that is suspended would not answer anyway.
+    if (Platform.isAndroid || Platform.isIOS) {
+      await stop();
+    }
+  }
+
+  void _onAvailabilityChange(AvailabilityState availability) {
+    _logger.info('Bluetooth availability: $availability');
+    if (availability == AvailabilityState.poweredOn) {
+      unawaited(start());
+    } else if (state.running) {
+      unawaited(stop().then((_) => state = state.copyWith(problem: NearbyProblem.bluetoothUnavailable)));
+    }
+  }
+
+  Future<bool> _requestPermissions() async {
+    if (Platform.isAndroid) {
+      final sdkInt = ref.read(deviceRawInfoProvider).androidSdkInt ?? 0;
+      final permissions = <Permission>[
+        if (sdkInt >= 31) ...[Permission.bluetoothScan, Permission.bluetoothConnect, Permission.bluetoothAdvertise],
+        if (sdkInt >= 33) Permission.nearbyWifiDevices,
+        // BLE scans before Android 12 and Wi-Fi Direct before Android 13 are
+        // gated behind the location permission.
+        if (sdkInt < 33) Permission.locationWhenInUse,
+      ];
+      final statuses = await permissions.request();
+      final denied = statuses.entries.where((e) => !e.value.isGranted).map((e) => e.key).toList();
+      if (denied.isNotEmpty) {
+        _logger.warning('Nearby permissions denied: $denied');
+        return false;
+      }
+      return true;
+    }
+    try {
+      await UniversalBle.requestPermissions();
+      return true;
+    } catch (e) {
+      _logger.warning('Bluetooth permission denied', e);
+      return false;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Receiver side: GATT server
+  // ---------------------------------------------------------------------------
+
+  Future<void> _startAdvertising() async {
+    if (_advertising) {
+      return;
+    }
+    if (ref.read(deviceVisibilityProvider) == DeviceVisibility.hidden) {
+      return;
+    }
+    if (ref.read(serverProvider) == null) {
+      // Nothing could be received anyway.
+      return;
+    }
+    try {
+      final capabilities = await UniversalBlePeripheral.getCapabilities();
+      if (!capabilities.supportsPeripheralMode) {
+        _logger.info('This device cannot act as a BLE peripheral; it can find others but cannot be found.');
+        return;
+      }
+      final readiness = await UniversalBlePeripheral.getAvailabilityState();
+      if (readiness != PeripheralReadinessState.ready) {
+        _logger.info('BLE peripheral not ready: $readiness');
+        return;
+      }
+      UniversalBlePeripheral.setReadRequestHandlers(_onReadRequest);
+      UniversalBlePeripheral.setWriteRequestHandlers(_onWriteRequest);
+      await UniversalBlePeripheral.clearServices();
+      await UniversalBlePeripheral.addService(
+        BlePeripheralService(
+          uuid: nearbyServiceUuid,
+          characteristics: [
+            BlePeripheralCharacteristic(
+              uuid: nearbyInfoCharacteristicUuid,
+              properties: [CharacteristicProperty.read],
+              permissions: [PeripheralAttributePermission.readable],
+            ),
+            BlePeripheralCharacteristic(
+              uuid: nearbyControlCharacteristicUuid,
+              properties: [CharacteristicProperty.read, CharacteristicProperty.write],
+              permissions: [PeripheralAttributePermission.readable, PeripheralAttributePermission.writeable],
+            ),
+          ],
+        ),
+      );
+      // No local name: on Android it would rename the system Bluetooth device.
+      await UniversalBlePeripheral.startAdvertising(services: [nearbyServiceUuid]);
+      _advertising = true;
+      _logger.info('Advertising over BLE');
+    } catch (e, st) {
+      _logger.warning('Could not advertise over BLE', e, st);
+    }
+  }
+
+  Future<void> _stopAdvertising() async {
+    if (!_advertising) {
+      return;
+    }
+    _advertising = false;
+    try {
+      await UniversalBlePeripheral.stopAdvertising();
+      await UniversalBlePeripheral.clearServices();
+    } catch (e) {
+      _logger.fine('Stopping the BLE peripheral failed', e);
+    }
+  }
+
+  /// The info characteristic, built on every read so it reflects renames and
+  /// server restarts.
+  NearbyPeerInfo? _ownInfo() {
+    final server = ref.read(serverProvider);
+    if (server == null) {
+      return null;
+    }
+    final deviceInfo = ref.read(deviceInfoProvider);
+    return NearbyPeerInfo(
+      version: nearbyProtocolVersion,
+      alias: server.alias,
+      fingerprint: ref.read(securityProvider).certificateHash,
+      deviceModel: deviceInfo.deviceModel,
+      deviceType: deviceInfo.deviceType,
+      port: server.port,
+      https: server.https,
+      wifi: _wifi.capabilities,
+    );
+  }
+
+  PeripheralReadRequestResult? _onReadRequest(String deviceId, String characteristicId, int offset, Uint8List? value) {
+    final characteristic = BleUuidParser.string(characteristicId);
+    if (characteristic == nearbyInfoCharacteristicUuid) {
+      final info = _ownInfo();
+      if (info == null) {
+        return PeripheralReadRequestResult(value: Uint8List(0));
+      }
+      return PeripheralReadRequestResult(value: info.toBytes());
+    }
+    if (characteristic == nearbyControlCharacteristicUuid) {
+      final response = _responses[_centralKey(deviceId)] ?? const NearbyIdleResponse();
+      return PeripheralReadRequestResult(value: response.toBytes());
+    }
+    return null;
+  }
+
+  PeripheralWriteRequestResult? _onWriteRequest(String deviceId, String characteristicId, int offset, Uint8List? value) {
+    if (BleUuidParser.string(characteristicId) != nearbyControlCharacteristicUuid || value == null) {
+      return null;
+    }
+    final central = _centralKey(deviceId);
+    try {
+      final payload = _assemblers.putIfAbsent(central, FrameAssembler.new).add(value);
+      if (payload != null) {
+        final request = NearbyRequest.fromBytes(payload);
+        _responses[central] = const NearbyPendingResponse();
+        unawaited(_handleRequest(central, request));
+      }
+    } on FormatException catch (e) {
+      _logger.warning('Invalid Nearby request from $central', e);
+      _responses[central] = NearbyErrorResponse('Invalid request: ${e.message}');
+    }
+    return PeripheralWriteRequestResult();
+  }
+
+  static String _centralKey(String deviceId) => deviceId.toLowerCase();
+
+  Future<void> _handleRequest(String central, NearbyRequest request) async {
+    NearbyResponse response;
+    try {
+      response = switch (request) {
+        NearbyHostRequest() => await _handleHostRequest(central, request),
+        NearbyJoinRequest() => await _handleJoinRequest(central, request),
+        NearbyEndRequest() => await _handleEndRequest(central, request),
+      };
+    } catch (e, st) {
+      _logger.warning('Nearby request ${request.runtimeType} from $central failed', e, st);
+      response = NearbyErrorResponse(e.toString());
+    }
+    _responses[central] = response;
+  }
+
+  /// Checks a sender before a network is set up for it.
+  /// The HTTP layer applies the same rules again with verified identities.
+  void _checkSenderAllowed(String fingerprint) {
+    if (ref.read(serverProvider) == null) {
+      throw const NearbyException('Receiving is turned off');
+    }
+    final visibility = ref.read(deviceVisibilityProvider);
+    if (visibility == DeviceVisibility.hidden) {
+      throw const NearbyException('Not accepting transfers');
+    }
+    if (visibility == DeviceVisibility.contactsOnly && !ref.read(favoritesProvider).any((f) => f.fingerprint == fingerprint)) {
+      throw const NearbyException('Only accepting transfers from contacts');
+    }
+  }
+
+  Future<NearbyResponse> _handleHostRequest(String central, NearbyHostRequest request) async {
+    _checkSenderAllowed(request.fingerprint);
+    if (!_wifi.capabilities.canHost) {
+      throw const NearbyException('This device cannot host a Wi-Fi Direct network');
+    }
+    final existing = _receiverNetwork;
+    if (existing != null && existing.role != NearbyWifiHost.receiver) {
+      throw const NearbyException('Busy with another transfer');
+    }
+    _logger.info('Hosting a Wi-Fi Direct network for ${request.alias}');
+    final network = await _wifi.startHosting();
+    final server = ref.read(serverProvider)!;
+    _setReceiverNetwork(
+      existing ?? _ReceiverNetwork(role: NearbyWifiHost.receiver, ssid: network.ssid, ip: network.ip, senders: {}, lastActive: DateTime.now()),
+      request.fingerprint,
+    );
+    return NearbyHostingResponse(ssid: network.ssid, passphrase: network.passphrase, ip: network.ip, port: server.port, https: server.https);
+  }
+
+  Future<NearbyResponse> _handleJoinRequest(String central, NearbyJoinRequest request) async {
+    _checkSenderAllowed(request.fingerprint);
+    if (!_wifi.capabilities.canJoin) {
+      throw const NearbyException('This device cannot join a Wi-Fi Direct network');
+    }
+    final existing = _receiverNetwork;
+    if (existing != null && (existing.role != NearbyWifiHost.sender || existing.ssid != request.ssid)) {
+      throw const NearbyException('Busy with another transfer');
+    }
+    final String ip;
+    if (existing != null) {
+      ip = existing.ip;
+    } else {
+      _logger.info('Joining ${request.ssid} for ${request.alias}');
+      try {
+        ip = await _wifi
+            .join(ssid: request.ssid, passphrase: request.passphrase, hostIp: request.hostIp)
+            .timeout(const Duration(seconds: 60), onTimeout: () => throw WifiLinkException('Timed out joining ${request.ssid}'));
+      } catch (e) {
+        await _wifi.leave();
+        rethrow;
+      }
+    }
+    final server = ref.read(serverProvider)!;
+    _setReceiverNetwork(
+      existing ?? _ReceiverNetwork(role: NearbyWifiHost.sender, ssid: request.ssid, ip: ip, senders: {}, lastActive: DateTime.now()),
+      request.fingerprint,
+    );
+    return NearbyJoinedResponse(ip: ip, port: server.port, https: server.https);
+  }
+
+  Future<NearbyResponse> _handleEndRequest(String central, NearbyEndRequest request) async {
+    final network = _receiverNetwork;
+    if (network != null) {
+      network.senders.remove(request.fingerprint);
+      if (network.senders.isEmpty) {
+        await _tearDownReceiverNetwork('transfer ended');
+      }
+    }
+    _assemblers.remove(central);
+    return const NearbyEndedResponse();
+  }
+
+  void _setReceiverNetwork(_ReceiverNetwork network, String senderFingerprint) {
+    network.senders.add(senderFingerprint);
+    network.lastActive = DateTime.now();
+    _receiverNetwork = network;
+    _watchdogTimer ??= Timer.periodic(const Duration(seconds: 10), (_) => unawaited(_receiverWatchdog()));
+  }
+
+  Future<void> _receiverWatchdog() async {
+    final network = _receiverNetwork;
+    if (network == null) {
+      _watchdogTimer?.cancel();
+      _watchdogTimer = null;
+      return;
+    }
+    final session = ref.read(serverProvider)?.session;
+    if (session != null && (session.status == SessionStatus.waiting || session.status == SessionStatus.sending)) {
+      network.lastActive = DateTime.now();
+      return;
+    }
+    if (DateTime.now().difference(network.lastActive) > _receiverIdleTimeout) {
+      await _tearDownReceiverNetwork('idle');
+    }
+  }
+
+  Future<void> _tearDownReceiverNetwork(String reason) async {
+    final network = _receiverNetwork;
+    if (network == null) {
+      return;
+    }
+    _receiverNetwork = null;
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
+    _logger.info('Leaving the temporary network ${network.ssid} ($reason)');
+    try {
+      switch (network.role) {
+        case NearbyWifiHost.receiver:
+          await _wifi.stopHosting();
+        case NearbyWifiHost.sender:
+          await _wifi.leave();
+      }
+    } catch (e) {
+      _logger.warning('Could not leave the temporary network', e);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Discovery: scanning and reading the info of found devices
+  // ---------------------------------------------------------------------------
+
+  Future<void> _startScan() async {
+    UniversalBle.onScanResult = _onScanResult;
+    await UniversalBle.startScan(scanFilter: ScanFilter(withServices: [nearbyServiceUuid]));
+  }
+
+  Future<void> _onCycle() async {
+    final now = DateTime.now();
+    for (final peer in _peers.values.toList()) {
+      if (now.difference(peer.lastSeen) > _peerTimeout) {
+        _removePeer(peer);
+      }
+    }
+    if (_exchangeCount > 0) {
+      return;
+    }
+    try {
+      await UniversalBle.stopScan();
+      await _startScan();
+    } catch (e) {
+      _logger.fine('Restarting the scan failed', e);
+    }
+  }
+
+  void _onScanResult(BleDevice device) {
+    final now = DateTime.now();
+    final peer = _peers.putIfAbsent(device.deviceId, () => _Peer(device.deviceId, now))..lastSeen = now;
+    if (peer.own) {
+      return;
+    }
+    final resolvedAt = peer.resolvedAt;
+    final needsInfo = resolvedAt == null || now.difference(resolvedAt) > _infoMaxAge;
+    final retryAfter = peer.retryAfter;
+    if (needsInfo && (retryAfter == null || now.isAfter(retryAfter)) && !_resolveQueue.contains(peer.bleId)) {
+      _resolveQueue.add(peer.bleId);
+      unawaited(_drainResolveQueue());
+    } else if (!needsInfo) {
+      _publish(peer);
+    }
+  }
+
+  Future<void> _drainResolveQueue() async {
+    if (_resolving) {
+      return;
+    }
+    _resolving = true;
+    try {
+      while (_resolveQueue.isNotEmpty && state.running) {
+        if (_exchangeCount > 0) {
+          await Future<void>.delayed(const Duration(seconds: 1));
+          continue;
+        }
+        final peer = _peers[_resolveQueue.removeAt(0)];
+        if (peer != null) {
+          await _resolve(peer);
+        }
+      }
+    } finally {
+      _resolving = false;
+    }
+  }
+
+  Future<void> _resolve(_Peer peer) async {
+    final id = peer.bleId;
+    try {
+      await UniversalBle.connect(id, timeout: _bleOperationTimeout);
+      await UniversalBle.discoverServices(id, timeout: _bleOperationTimeout);
+      final bytes = await UniversalBle.read(id, nearbyServiceUuid, nearbyInfoCharacteristicUuid, timeout: _bleOperationTimeout);
+      final info = NearbyPeerInfo.fromBytes(bytes);
+      if (info.fingerprint == ref.read(securityProvider).certificateHash) {
+        peer.own = true;
+        return;
+      }
+      peer
+        ..info = info
+        ..resolvedAt = DateTime.now()
+        ..failures = 0
+        ..retryAfter = null;
+      _logger.info('Found ${info.alias} over BLE ($id)');
+      _publish(peer);
+    } catch (e) {
+      peer.failures++;
+      // 5s, 10s, 20s, ... capped at 2 minutes.
+      final backoff = Duration(seconds: (5 * (1 << (peer.failures - 1).clamp(0, 5))).clamp(5, 120));
+      peer.retryAfter = DateTime.now().add(backoff);
+      _logger.fine('Could not read the info of $id (attempt ${peer.failures})', e);
+    } finally {
+      try {
+        await UniversalBle.disconnect(id);
+      } catch (_) {
+        // Already disconnected.
+      }
+    }
+  }
+
+  void _publish(_Peer peer) {
+    final info = peer.info;
+    if (info == null) {
+      return;
+    }
+    final device = Device(
+      signalingId: null,
+      ip: null,
+      version: protocolVersion,
+      port: info.port,
+      https: info.https,
+      fingerprint: info.fingerprint,
+      alias: info.alias,
+      deviceModel: info.deviceModel,
+      deviceType: info.deviceType,
+      download: false,
+      channels: [BluetoothChannel(bleId: peer.bleId, canHost: info.wifi.canHost, canJoin: info.wifi.canJoin)],
+    );
+    final current = ref.read(nearbyDevicesProvider).bluetoothDevices[info.fingerprint];
+    if (current != device) {
+      ref.redux(nearbyDevicesProvider).dispatch(RegisterBluetoothDeviceAction(device));
+    }
+  }
+
+  void _removePeer(_Peer peer) {
+    _peers.remove(peer.bleId);
+    final fingerprint = peer.info?.fingerprint;
+    if (fingerprint == null) {
+      return;
+    }
+    // The device may still be advertising under a newer (rotated) address.
+    final stillSeen = _peers.values.any((p) => p.info?.fingerprint == fingerprint);
+    if (!stillSeen) {
+      _logger.info('Lost ${peer.info?.alias} over BLE');
+      ref.redux(nearbyDevicesProvider).dispatch(UnregisterBluetoothDeviceAction(fingerprint));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sender side
+  // ---------------------------------------------------------------------------
+
+  /// Whether a send to [target] has to go through [openLink]: it was found
+  /// over BLE and its HTTP server is not reachable on any shared network.
+  static BluetoothChannel? bluetoothChannelOf(Device target) => target.channels.whereType<BluetoothChannel>().firstOrNull;
+
+  /// Sets up the temporary network to [target] for the send session
+  /// [sessionId]. The network is torn down automatically once that session
+  /// ends. Throws [NearbyException] with a user-facing message on failure.
+  Future<NearbyLink> openLink({required String sessionId, required Device target}) async {
+    final channel = bluetoothChannelOf(target);
+    if (channel == null) {
+      throw NearbyException(t.glide.nearby.errors.incompatible(device: target.alias));
+    }
+    final host = decideWifiHost(
+      sender: _wifi.capabilities,
+      receiver: NearbyWifiCapabilities(canHost: channel.canHost, canJoin: channel.canJoin),
+    );
+    if (host == null) {
+      throw NearbyException(t.glide.nearby.errors.incompatible(device: target.alias));
+    }
+
+    state = state.copyWith(connectingSessions: {...state.connectingSessions, sessionId});
+    _exchangeCount++;
+    final self = ref.read(deviceFullInfoProvider);
+    var hosting = false;
+    var joined = false;
+    try {
+      final NearbyLink link;
+      switch (host) {
+        case NearbyWifiHost.receiver:
+          final response = await _exchange<NearbyHostingResponse>(
+            channel.bleId,
+            NearbyHostRequest(fingerprint: self.fingerprint, alias: self.alias),
+            timeout: const Duration(seconds: 45),
+          );
+          joined = true;
+          await _wifi
+              .join(ssid: response.ssid, passphrase: response.passphrase, hostIp: response.ip)
+              .timeout(const Duration(seconds: 60), onTimeout: () => throw WifiLinkException('Timed out joining ${response.ssid}'));
+          link = NearbyLink(bleId: channel.bleId, host: host, ip: response.ip, port: response.port, https: response.https);
+        case NearbyWifiHost.sender:
+          hosting = true;
+          final network = await _wifi.startHosting().timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => throw const WifiLinkException('Timed out creating the network'),
+          );
+          final response = await _exchange<NearbyJoinedResponse>(
+            channel.bleId,
+            NearbyJoinRequest(
+              fingerprint: self.fingerprint,
+              alias: self.alias,
+              ssid: network.ssid,
+              passphrase: network.passphrase,
+              hostIp: network.ip,
+            ),
+            // Joining can wait for the user to confirm a system prompt (iOS).
+            timeout: const Duration(seconds: 90),
+          );
+          link = NearbyLink(bleId: channel.bleId, host: host, ip: response.ip, port: response.port, https: response.https);
+      }
+      _senderLinks[sessionId] = link;
+      _logger.info('Temporary network to ${target.alias} is up, receiver at ${link.ip}:${link.port}');
+      // The session may have been canceled meanwhile.
+      _onSendSessionsChanged(ref.read(sendProvider));
+      return link;
+    } catch (e, st) {
+      _logger.warning('Could not set up the temporary network to ${target.alias}', e, st);
+      unawaited(_sendEnd(channel.bleId, self.fingerprint));
+      if (joined) {
+        await _wifi.leave().catchError((Object _) {});
+      }
+      if (hosting) {
+        await _wifi.stopHosting().catchError((Object _) {});
+      }
+      throw switch (e) {
+        NearbyException() => e,
+        TimeoutException() => NearbyException(t.glide.nearby.errors.timeout(device: target.alias)),
+        WifiLinkException() => NearbyException(t.glide.nearby.errors.wifi(reason: e.message)),
+        _ => NearbyException(t.glide.nearby.errors.wifi(reason: e.toString())),
+      };
+    } finally {
+      _exchangeCount--;
+      state = state.copyWith(connectingSessions: {...state.connectingSessions}..remove(sessionId));
+    }
+  }
+
+  void _onSendSessionsChanged(Map<String, SendSessionState> sessions) {
+    for (final sessionId in _senderLinks.keys.toList()) {
+      final status = sessions[sessionId]?.status;
+      final ended = switch (status) {
+        null => true,
+        SessionStatus.waiting || SessionStatus.sending => false,
+        _ => true,
+      };
+      if (ended) {
+        final link = _senderLinks.remove(sessionId)!;
+        unawaited(_closeLink(link));
+      }
+    }
+  }
+
+  Future<void> _closeLink(NearbyLink link) async {
+    _logger.info('Transfer over, leaving the temporary network');
+    await _sendEnd(link.bleId, ref.read(securityProvider).certificateHash);
+    try {
+      switch (link.host) {
+        case NearbyWifiHost.receiver:
+          await _wifi.leave();
+        case NearbyWifiHost.sender:
+          await _wifi.stopHosting();
+      }
+    } catch (e) {
+      _logger.warning('Could not leave the temporary network', e);
+    }
+  }
+
+  Future<void> _sendEnd(String bleId, String ownFingerprint) async {
+    _exchangeCount++;
+    try {
+      await _exchange<NearbyEndedResponse>(bleId, NearbyEndRequest(fingerprint: ownFingerprint), timeout: const Duration(seconds: 15));
+    } catch (e) {
+      // The receiver's watchdog tears its side down eventually.
+      _logger.info('Could not tell the receiver that the transfer ended', e);
+    } finally {
+      _exchangeCount--;
+    }
+  }
+
+  /// Writes [request] to [bleId] and polls until it answers with a [T].
+  Future<T> _exchange<T extends NearbyResponse>(String bleId, NearbyRequest request, {required Duration timeout}) async {
+    final deadline = DateTime.now().add(timeout);
+    try {
+      await UniversalBle.connect(bleId, timeout: _bleOperationTimeout);
+      await UniversalBle.discoverServices(bleId, timeout: _bleOperationTimeout);
+      var mtu = 23;
+      try {
+        mtu = await UniversalBle.requestMtu(bleId, 185, timeout: _bleOperationTimeout);
+      } catch (e) {
+        _logger.fine('MTU negotiation failed, using the default', e);
+      }
+      for (final frame in encodeFrames(request.toBytes(), (mtu - 3).clamp(20, 512))) {
+        await UniversalBle.write(bleId, nearbyServiceUuid, nearbyControlCharacteristicUuid, frame, timeout: _bleOperationTimeout);
+      }
+      while (true) {
+        if (DateTime.now().isAfter(deadline)) {
+          throw TimeoutException('No answer to ${request.runtimeType}', timeout);
+        }
+        final bytes = await UniversalBle.read(bleId, nearbyServiceUuid, nearbyControlCharacteristicUuid, timeout: _bleOperationTimeout);
+        final response = NearbyResponse.fromBytes(bytes);
+        switch (response) {
+          case T():
+            return response;
+          case NearbyErrorResponse(:final message):
+            throw NearbyException(message);
+          case NearbyPendingResponse() || NearbyIdleResponse():
+            await Future<void>.delayed(const Duration(milliseconds: 500));
+          default:
+            throw NearbyException('Unexpected answer: ${response.runtimeType}');
+        }
+      }
+    } finally {
+      try {
+        await UniversalBle.disconnect(bleId);
+      } catch (_) {
+        // Already disconnected.
+      }
+    }
+  }
+}

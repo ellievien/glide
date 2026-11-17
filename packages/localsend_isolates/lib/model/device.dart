@@ -41,6 +41,24 @@ class SignalingChannel extends DeviceChannel with SignalingChannelMappable {
   const SignalingChannel({required this.signalingServer});
 }
 
+/// The device was found over Bluetooth Low Energy and is not on a shared
+/// network: a temporary Wi-Fi Direct network has to be set up over BLE before
+/// its HTTP server can be reached (see the app's Nearby service).
+@MappableClass()
+class BluetoothChannel extends DeviceChannel with BluetoothChannelMappable {
+  /// The platform's BLE identifier of the device (a MAC address on Android,
+  /// Windows and Linux, a per-app UUID on iOS and macOS).
+  final String bleId;
+
+  /// Whether the device can create the temporary network.
+  final bool canHost;
+
+  /// Whether the device can join a temporary network created by this one.
+  final bool canJoin;
+
+  const BluetoothChannel({required this.bleId, required this.canHost, required this.canJoin});
+}
+
 /// Whether a [DeviceLog] discovered the device or re-confirmed it.
 enum DeviceLogKind {
   discovered,
@@ -66,7 +84,8 @@ class DeviceLog {
 
 enum TransmissionMethod {
   http('HTTP'),
-  webrtc('WebRTC')
+  webrtc('WebRTC'),
+  bluetooth('Bluetooth + Wi-Fi Direct')
   ;
 
   final String label;
@@ -103,6 +122,7 @@ class Device with DeviceMappable {
         switch (channel) {
           HttpChannel() => TransmissionMethod.http,
           SignalingChannel() => TransmissionMethod.webrtc,
+          BluetoothChannel() => TransmissionMethod.bluetooth,
         },
     };
   }

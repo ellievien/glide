@@ -121,6 +121,16 @@ UDP is **announce-only**: responses go back over HTTP as a unicast register requ
 
 One socket is bound per interface IPv4 address (`SO_REUSEPORT`/`SO_REUSEADDR` + `IP_MULTICAST_IF`), because a single socket only sends on one interface. Multicast loopback stays on so that instances on one host see each other; own messages are dropped by fingerprint. IPv6 is a LocalSend extension (group `ff12::fd3a:e420`, `DEFAULT_MULTICAST_GROUP_V6`), enabled by setting `group_v6`: one `IPV6_V6ONLY` socket per interface, joined by interface index. `Discovered` carries the source's scope ID (interface index), which link-local IPv6 sources need for the HTTP answer.
 
+### Nearby: Bluetooth discovery + Wi-Fi Direct (Dart)
+
+`app/lib/provider/network/nearby/` lets devices that are **not** on the same network find each other and transfer, while the app is open:
+
+- **Discovery**: every instance advertises the GATT service `nearbyServiceUuid` (`nearby_protocol.dart`) via `universal_ble` and scans for it. A found device's info characteristic (alias, fingerprint, port, https, Wi-Fi capabilities) is read once and the device is registered as a `Device` with a `BluetoothChannel` (no `ip`) in `NearbyDevicesState.bluetoothDevices`; `allDevices` merges it into a same-fingerprint HTTP device as a fallback channel. Peripheral mode is unavailable on Linux in `universal_ble`, so Linux can find others but is not discoverable.
+- **Transfer**: `SendNotifier.startSession` resolves a target that has a `BluetoothChannel` and no reachable `ip` through `NearbyService.openLink`: over the control characteristic (framed writes, polled reads — no notifications, no long writes) the sender asks the receiver to host (`NearbyHostRequest`) or to join the sender's network (`NearbyJoinRequest`), see `decideWifiHost`. The regular HTTP transfer then runs over that network, pinned to the BLE-advertised fingerprint as usual.
+- **Teardown**: `NearbyService` watches `sendProvider`; when the session ends it writes `NearbyEndRequest` and both sides leave the network. A receiver-side watchdog drops the network after 2 minutes without a receive session.
+- **Wi-Fi per platform** (`wifi_link.dart`): Android hosts a Wi-Fi Direct group (legacy WPA2 clients can join) and joins as a P2P client (`NearbyWifi.kt`, channel `org.glideapp.glide/nearby_wifi`); iOS joins via `NEHotspotConfiguration` (`AppDelegate.swift`, needs the Hotspot Configuration capability); macOS joins via CoreWLAN (`MainFlutterWindow.swift`, needs Location for SSIDs); Windows joins with a temporary WLAN profile (wlanapi FFI via `win32`); Linux joins and hosts through `nmcli`. Pairs where neither side can host (e.g. iPhone ↔ Mac) get a "connect to the same Wi-Fi" error.
+- `universal_ble` is pinned below 3.1.1 because later versions need `bluez ^0.9` → `dbus ^0.8`, which conflicts with `file_picker`'s `dbus ^0.7`.
+
 ### i18n
 
 Slang, source files in `app/assets/i18n/` (`<locale>.json` plus `_missing_translations_<locale>.json`), generated output in `app/lib/gen/`. Translations are managed on Weblate; fields prefixed with `@` are metadata for translators and are not used by the app. `app/test/unit/i18n_test.dart` guards the locale set.

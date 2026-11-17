@@ -88,6 +88,18 @@
       "speedAverage": "{speed} MB/s average",
       "fileFallback": "file"
     },
+    "nearby": {
+      "settingsLabel": "Find devices over Bluetooth",
+      "settingsHint": "See Glide devices that are not on your Wi-Fi. Files go over a direct Wi-Fi link that closes after the transfer.",
+      "connecting": "Connecting directly…",
+      "bluetoothOff": "Turn on Bluetooth to also find devices that are not on your Wi-Fi.",
+      "permissionDenied": "Allow Bluetooth and Nearby devices to find devices that are not on your Wi-Fi.",
+      "errors": {
+        "incompatible": "Can't reach {device} without a shared network. Connect both devices to the same Wi-Fi.",
+        "timeout": "{device} did not respond over Bluetooth.",
+        "wifi": "Could not set up a direct Wi-Fi link: {reason}"
+      }
+    },
     "landed": {
       "transferFailed": "Transfer failed",
       "landedFrom": "Landed from {device}",

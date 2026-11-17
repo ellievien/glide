@@ -41,6 +41,7 @@ class NearbyDevicesService extends ReduxNotifier<NearbyDevicesState> {
     runningIps: {},
     devices: {},
     signalingDevices: {},
+    bluetoothDevices: {},
   );
 }
 
@@ -95,6 +96,43 @@ class RegisterDeviceAction extends AsyncReduxAction<NearbyDevicesService, Nearby
     }
     return state.copyWith(
       devices: {...state.devices}..update(device.fingerprint, (_) => device, ifAbsent: () => device),
+    );
+  }
+}
+
+/// Registers (or updates) a device found over Bluetooth Low Energy.
+class RegisterBluetoothDeviceAction extends ReduxAction<NearbyDevicesService, NearbyDevicesState> {
+  final Device device;
+
+  RegisterBluetoothDeviceAction(this.device);
+
+  @override
+  bool get trackOrigin => false;
+
+  @override
+  NearbyDevicesState reduce() {
+    return state.copyWith(
+      bluetoothDevices: {...state.bluetoothDevices, device.fingerprint: device},
+    );
+  }
+}
+
+/// Removes a device that is no longer seen over Bluetooth Low Energy.
+class UnregisterBluetoothDeviceAction extends ReduxAction<NearbyDevicesService, NearbyDevicesState> {
+  final String fingerprint;
+
+  UnregisterBluetoothDeviceAction(this.fingerprint);
+
+  @override
+  bool get trackOrigin => false;
+
+  @override
+  NearbyDevicesState reduce() {
+    if (!state.bluetoothDevices.containsKey(fingerprint)) {
+      return state;
+    }
+    return state.copyWith(
+      bluetoothDevices: {...state.bluetoothDevices}..remove(fingerprint),
     );
   }
 }

@@ -161,7 +161,8 @@ class _GlideHomePageState extends State<GlideHomePage> with Refena {
     final alias = ref.watch(settingsProvider.select((s) => s.alias));
     final visibility = ref.watch(deviceVisibilityProvider);
     final network = ref.watch(localIpProvider);
-    final offline = network.initialized && network.localIps.isEmpty;
+    // Devices found over Bluetooth can be reached without a network.
+    final offline = network.initialized && network.localIps.isEmpty && devices.isEmpty;
     final queuedFiles = ref.watch(selectedSendingFilesProvider);
     final reduceMotion = !ref.watch(animationProvider) || MediaQuery.of(context).disableAnimations;
 

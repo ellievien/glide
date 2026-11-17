@@ -10,6 +10,17 @@ subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }
 
+// universal_ble configures `kotlin { compilerOptions { ... } }` without applying the Kotlin
+// plugin, relying on AGP 9's built-in Kotlin. On AGP 8 the plugin has to be applied for it,
+// right after the Android library plugin and before that block is evaluated.
+subprojects { project ->
+    if (project.name == "universal_ble") {
+        project.pluginManager.withPlugin("com.android.library") {
+            project.pluginManager.apply("org.jetbrains.kotlin.android")
+        }
+    }
+}
+
 // temporary fix to keep using device_apps
 // https://stackoverflow.com/questions/69033022/message-error-resource-androidattr-lstar-not-found
 subprojects {

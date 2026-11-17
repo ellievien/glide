@@ -45,11 +45,13 @@
   </ul>
 
   <h2>How file transfers work</h2>
-  <p>When you send a file with Glide, it goes directly from your device to the recipient's device over your local Wi-Fi network, using an encrypted connection between the two devices. Files never pass through, or get copied to, a remote server. If you are not on the same local network as the recipient, Glide cannot send the file — there is no cloud relay to fall back on.</p>
+  <p>When you send a file with Glide, it goes directly from your device to the recipient's device over your local Wi-Fi network, using an encrypted connection between the two devices. Files never pass through, or get copied to, a remote server. If you are not on the same local network as the recipient, Glide can find the other device over Bluetooth and set up a temporary direct Wi-Fi connection between the two devices (Wi-Fi Direct) for the transfer, which is closed again when the transfer ends. There is no cloud relay in either case.</p>
 
   <h2>Permissions Glide requests</h2>
   <ul>
     <li><strong>Local network access</strong> — to discover nearby devices running Glide and to send or receive files with them.</li>
+    <li><strong>Bluetooth and Nearby devices</strong> — while Glide is open, to let nearby devices running Glide find yours and to find theirs, even when you are not on the same Wi-Fi. Over Bluetooth, Glide shares only your device name, device type and the details needed to set up the direct connection.</li>
+    <li><strong>Location (older Android versions and macOS only)</strong> — required by the operating system to scan for Bluetooth devices or to see the name of the temporary Wi-Fi network. Glide never reads or stores your location.</li>
     <li><strong>Photo library access</strong> — only when you choose to pick a photo or video to send, or when you choose to save a received photo or video to your library. Glide does not access your photo library at any other time.</li>
   </ul>
   <p>None of the data these permissions expose is transmitted anywhere except to the specific nearby device you choose to send a file to or receive a file from.</p>

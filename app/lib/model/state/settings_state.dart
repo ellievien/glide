@@ -40,6 +40,10 @@ class SettingsState with SettingsStateMappable {
   final int discoveryTimeout;
   final bool advancedSettings;
 
+  /// Find devices over Bluetooth and transfer over a temporary Wi-Fi Direct
+  /// network when they are not on the same network.
+  final bool nearbyBluetooth;
+
   const SettingsState({
     required this.showToken,
     required this.alias,
@@ -71,5 +75,6 @@ class SettingsState with SettingsStateMappable {
     required this.verifyChecksums,
     required this.discoveryTimeout,
     required this.advancedSettings,
+    required this.nearbyBluetooth,
   });
 }

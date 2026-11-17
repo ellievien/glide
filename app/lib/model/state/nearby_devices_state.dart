@@ -14,16 +14,28 @@ class NearbyDevicesState with NearbyDevicesStateMappable {
   /// We do not trust the fingerprint, so we allow multiple devices with the same fingerprint.
   final Map<String, Set<Device>> signalingDevices;
 
+  /// Devices found over Bluetooth Low Energy (not necessarily on this network).
+  /// The key is the fingerprint the device claims; the HTTP client verifies it
+  /// against the TLS certificate once the temporary network is up.
+  final Map<String, Device> bluetoothDevices;
+
   const NearbyDevicesState({
     required this.runningFavoriteScan,
     required this.runningIps,
     required this.devices,
     required this.signalingDevices,
+    required this.bluetoothDevices,
   });
 
   Map<String, Device> get allDevices {
     final Map<String, Device> allDevices = {};
     allDevices.addAll(devices);
+    for (final device in bluetoothDevices.values) {
+      final currentDevice = allDevices[device.fingerprint];
+      // A device on this network keeps its address and gains the Bluetooth
+      // channel as a fallback for when it is no longer reachable here.
+      allDevices[device.fingerprint] = currentDevice != null ? currentDevice.merge(device) : device;
+    }
     for (final devices in signalingDevices.values) {
       for (final device in devices) {
         final currentDevice = allDevices[device.fingerprint];

@@ -8,6 +8,7 @@ import 'package:glide/pages/glide/glide_history_page.dart';
 import 'package:glide/pages/glide/glide_rename_dialog.dart';
 import 'package:glide/provider/device_info_provider.dart';
 import 'package:glide/provider/device_visibility_provider.dart';
+import 'package:glide/provider/network/nearby/nearby_service.dart';
 import 'package:glide/provider/settings_provider.dart';
 import 'package:glide/provider/version_provider.dart';
 import 'package:glide/util/native/directories.dart';
@@ -164,20 +165,73 @@ class _VisibilitySection extends StatelessWidget {
 
     return _Section(
       label: t.glide.settings.visibility,
-      child: GlideCard(
-        padding: EdgeInsets.zero,
-        child: Column(
-          children: [
-            for (final value in DeviceVisibility.values) ...[
-              if (value != DeviceVisibility.values.first) const GlideCardDivider(),
-              GlideRadioRow(
-                label: value.label,
-                selected: value == visibility,
-                onTap: () => context.notifier(deviceVisibilityProvider).setVisibility(value),
+      child: Column(
+        children: [
+          GlideCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                for (final value in DeviceVisibility.values) ...[
+                  if (value != DeviceVisibility.values.first) const GlideCardDivider(),
+                  GlideRadioRow(
+                    label: value.label,
+                    selected: value == visibility,
+                    onTap: () => context.notifier(deviceVisibilityProvider).setVisibility(value),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (NearbyService.isSupportedPlatform) ...[
+            const SizedBox(height: 12),
+            const _NearbyCard(),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Bluetooth discovery of devices that are not on the same network, with a
+/// temporary Wi-Fi Direct link for the transfer.
+class _NearbyCard extends StatelessWidget {
+  const _NearbyCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = context.watch(settingsProvider.select((s) => s.nearbyBluetooth));
+    final problem = context.watch(nearbyProvider.select((s) => s.problem));
+    final problemText = !enabled
+        ? null
+        : switch (problem) {
+            NearbyProblem.bluetoothUnavailable => t.glide.nearby.bluetoothOff,
+            NearbyProblem.permissionDenied => t.glide.nearby.permissionDenied,
+            null => null,
+          };
+
+    return GlideCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(t.glide.nearby.settingsLabel, style: GT.body)),
+              const SizedBox(width: 12),
+              GlideToggle(
+                value: enabled,
+                semanticLabel: t.glide.nearby.settingsLabel,
+                onChanged: (value) => context.notifier(nearbyProvider).setEnabled(value),
               ),
             ],
+          ),
+          const SizedBox(height: 6),
+          Text(t.glide.nearby.settingsHint, style: GT.caption),
+          if (problemText != null) ...[
+            const SizedBox(height: 6),
+            Text(problemText, style: GT.caption.copyWith(color: GT.blue)),
           ],
-        ),
+        ],
       ),
     );
   }

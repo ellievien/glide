@@ -107,6 +107,8 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Glide uses Bluetooth to find nearby devices that are not on your Wi-Fi, so you can send files to them directly.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Glide uses your local network to discover nearby devices and send or receive files with them directly, without going through the internet.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
