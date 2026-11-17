@@ -7,6 +7,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:collection/collection.dart';
 import 'package:localsend_isolates/model/device.dart';
 
 /// The GATT service every Glide instance advertises while it is open.
@@ -18,6 +19,10 @@ const nearbyInfoCharacteristicUuid = 'b6bc6434-d31a-4001-b1b5-45637ca5102c';
 /// Write: a [NearbyRequest], split into frames by [encodeFrames].
 /// Read: the [NearbyResponse] to the last request of the reading central.
 const nearbyControlCharacteristicUuid = 'cddc666d-cd9d-4f90-b629-a75b69cc45bf';
+
+/// The Bonjour service type of the peer-to-peer mode (also declared in the
+/// iOS and macOS Info.plist under NSBonjourServices).
+const nearbyBonjourType = '_glide-p2p._tcp';
 
 /// Bumped on incompatible changes of the messages below.
 const nearbyProtocolVersion = 1;
@@ -40,18 +45,23 @@ class NearbyWifiCapabilities {
   /// Can join a network created by the other device given its SSID and passphrase.
   final bool canJoin;
 
-  const NearbyWifiCapabilities({required this.canHost, required this.canJoin});
+  /// Can use Apple's peer-to-peer Wi-Fi (AWDL) through Bonjour, which needs
+  /// no network at all. Only between Apple devices.
+  final bool peerToPeer;
+
+  const NearbyWifiCapabilities({required this.canHost, required this.canJoin, this.peerToPeer = false});
 
   static const none = NearbyWifiCapabilities(canHost: false, canJoin: false);
 
   @override
-  bool operator ==(Object other) => other is NearbyWifiCapabilities && other.canHost == canHost && other.canJoin == canJoin;
+  bool operator ==(Object other) =>
+      other is NearbyWifiCapabilities && other.canHost == canHost && other.canJoin == canJoin && other.peerToPeer == peerToPeer;
 
   @override
-  int get hashCode => Object.hash(canHost, canJoin);
+  int get hashCode => Object.hash(canHost, canJoin, peerToPeer);
 
   @override
-  String toString() => 'NearbyWifiCapabilities(canHost: $canHost, canJoin: $canJoin)';
+  String toString() => 'NearbyWifiCapabilities(canHost: $canHost, canJoin: $canJoin, peerToPeer: $peerToPeer)';
 }
 
 /// The content of the info characteristic: everything needed to show the
@@ -87,6 +97,7 @@ class NearbyPeerInfo {
     's': https,
     'h': wifi.canHost,
     'j': wifi.canJoin,
+    'w': wifi.peerToPeer,
   };
 
   Uint8List toBytes() => _encodeJson(toJson());
@@ -107,7 +118,7 @@ class NearbyPeerInfo {
       deviceType: DeviceType.values.firstWhere((t) => t.name == json['t'], orElse: () => DeviceType.desktop),
       port: _requirePort(json, 'p'),
       https: json['s'] == true,
-      wifi: NearbyWifiCapabilities(canHost: json['h'] == true, canJoin: json['j'] == true),
+      wifi: NearbyWifiCapabilities(canHost: json['h'] == true, canJoin: json['j'] == true, peerToPeer: json['w'] == true),
     );
   }
 }
@@ -132,6 +143,7 @@ sealed class NearbyRequest {
         passphrase: _requireString(json, 'k'),
         hostIp: _requireString(json, 'g'),
       ),
+      'p2p' => NearbyPeerToPeerRequest(fingerprint: _requireString(json, 'f'), alias: _requireString(json, 'a')),
       'end' => NearbyEndRequest(fingerprint: _requireString(json, 'f')),
       final op => throw FormatException('Unknown request "$op"'),
     };
@@ -175,6 +187,18 @@ class NearbyJoinRequest extends NearbyRequest {
   Map<String, Object?> toJson() => {'op': 'join', 'f': fingerprint, 'a': alias, 'n': ssid, 'k': passphrase, 'g': hostIp};
 }
 
+/// "Advertise your HTTP server over Apple's peer-to-peer Wi-Fi."
+/// Sent when both devices support [NearbyWifiCapabilities.peerToPeer].
+class NearbyPeerToPeerRequest extends NearbyRequest {
+  final String fingerprint;
+  final String alias;
+
+  const NearbyPeerToPeerRequest({required this.fingerprint, required this.alias});
+
+  @override
+  Map<String, Object?> toJson() => {'op': 'p2p', 'f': fingerprint, 'a': alias};
+}
+
 /// "The transfer is over, tear the temporary network down."
 class NearbyEndRequest extends NearbyRequest {
   /// The sender that is done. Identifies it across BLE connections, whose
@@ -209,8 +233,13 @@ sealed class NearbyResponse {
         https: json['x'] == true,
       ),
       'joined' => NearbyJoinedResponse(ip: _requireString(json, 'i'), port: _requirePort(json, 'p'), https: json['x'] == true),
+      'p2p' => NearbyPeerToPeerResponse(
+        serviceName: _requireString(json, 'n'),
+        port: _requirePort(json, 'p'),
+        https: json['x'] == true,
+      ),
       'ended' => const NearbyEndedResponse(),
-      'error' => NearbyErrorResponse(json['e'] is String ? json['e']! as String : 'Unknown error'),
+      'error' => NearbyErrorResponse(json['e'] is String ? json['e']! as String : 'Unknown error', retryable: json['r'] == true),
       final status => throw FormatException('Unknown response "$status"'),
     };
   }
@@ -260,6 +289,19 @@ class NearbyJoinedResponse extends NearbyResponse {
   Map<String, Object?> toJson() => {'s': 'joined', 'i': ip, 'p': port, 'x': https};
 }
 
+/// Answer to [NearbyPeerToPeerRequest]: the HTTP server is advertised over
+/// peer-to-peer Bonjour as [serviceName] (type [nearbyBonjourType]).
+class NearbyPeerToPeerResponse extends NearbyResponse {
+  final String serviceName;
+  final int port;
+  final bool https;
+
+  const NearbyPeerToPeerResponse({required this.serviceName, required this.port, required this.https});
+
+  @override
+  Map<String, Object?> toJson() => {'s': 'p2p', 'n': serviceName, 'p': port, 'x': https};
+}
+
 /// Answer to [NearbyEndRequest].
 class NearbyEndedResponse extends NearbyResponse {
   const NearbyEndedResponse();
@@ -272,32 +314,46 @@ class NearbyEndedResponse extends NearbyResponse {
 class NearbyErrorResponse extends NearbyResponse {
   final String message;
 
-  const NearbyErrorResponse(this.message);
+  /// The request failed while setting up Wi-Fi, so another [NearbyLinkMode]
+  /// may still work. `false` when the receiver refused the sender.
+  final bool retryable;
+
+  const NearbyErrorResponse(this.message, {this.retryable = false});
 
   @override
-  Map<String, Object?> toJson() => {'s': 'error', 'e': message};
+  Map<String, Object?> toJson() => {'s': 'error', 'e': message, if (retryable) 'r': true};
 }
 
-/// Which side creates the temporary Wi-Fi network.
-enum NearbyWifiHost {
-  /// The receiver hosts, the sender joins. Preferred: the receiver is the one
-  /// whose HTTP server is dialed, and as the group owner it has a fixed address.
-  receiver,
+/// How the two devices get a network for the transfer.
+enum NearbyLinkMode {
+  /// Apple peer-to-peer Wi-Fi (AWDL): nobody hosts, nobody leaves their
+  /// network. Preferred whenever both devices support it.
+  peerToPeer,
+
+  /// The receiver hosts, the sender joins. Preferred over [senderHosts]: the
+  /// receiver is the one whose HTTP server is dialed, and as the host it has
+  /// a fixed address.
+  receiverHosts,
 
   /// The sender hosts, the receiver joins and reports its address.
-  sender,
+  senderHosts,
 }
 
-/// Picks who hosts the network, or `null` when neither combination works
-/// (e.g. two devices that can only join, like two iPhones).
-NearbyWifiHost? decideWifiHost({required NearbyWifiCapabilities sender, required NearbyWifiCapabilities receiver}) {
-  if (receiver.canHost && sender.canJoin) {
-    return NearbyWifiHost.receiver;
-  }
-  if (sender.canHost && receiver.canJoin) {
-    return NearbyWifiHost.sender;
-  }
-  return null;
+/// Every way the two devices can connect, best first. The next one is tried
+/// when one fails, e.g. on a PC whose adapter turns out not to support Wi-Fi
+/// Direct.
+List<NearbyLinkMode> candidateLinkModes({required NearbyWifiCapabilities sender, required NearbyWifiCapabilities receiver}) {
+  return [
+    if (sender.peerToPeer && receiver.peerToPeer) NearbyLinkMode.peerToPeer,
+    if (receiver.canHost && sender.canJoin) NearbyLinkMode.receiverHosts,
+    if (sender.canHost && receiver.canJoin) NearbyLinkMode.senderHosts,
+  ];
+}
+
+/// Picks how to connect, or `null` when no combination works (e.g. a
+/// Windows PC and a Mac where neither can host).
+NearbyLinkMode? decideLinkMode({required NearbyWifiCapabilities sender, required NearbyWifiCapabilities receiver}) {
+  return candidateLinkModes(sender: sender, receiver: receiver).firstOrNull;
 }
 
 /// Splits [payload] into frames of at most [maxFrameSize] bytes, each

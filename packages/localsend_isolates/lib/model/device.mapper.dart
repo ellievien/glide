@@ -400,12 +400,20 @@ class BluetoothChannelMapper extends ClassMapperBase<BluetoothChannel> {
     'canJoin',
     _$canJoin,
   );
+  static bool _$peerToPeer(BluetoothChannel v) => v.peerToPeer;
+  static const Field<BluetoothChannel, bool> _f$peerToPeer = Field(
+    'peerToPeer',
+    _$peerToPeer,
+    opt: true,
+    def: false,
+  );
 
   @override
   final MappableFields<BluetoothChannel> fields = const {
     #bleId: _f$bleId,
     #canHost: _f$canHost,
     #canJoin: _f$canJoin,
+    #peerToPeer: _f$peerToPeer,
   };
 
   static BluetoothChannel _instantiate(DecodingData data) {
@@ -413,6 +421,7 @@ class BluetoothChannelMapper extends ClassMapperBase<BluetoothChannel> {
       bleId: data.dec(_f$bleId),
       canHost: data.dec(_f$canHost),
       canJoin: data.dec(_f$canJoin),
+      peerToPeer: data.dec(_f$peerToPeer),
     );
   }
 
@@ -479,7 +488,7 @@ extension BluetoothChannelValueCopy<$R, $Out>
 abstract class BluetoothChannelCopyWith<$R, $In extends BluetoothChannel, $Out>
     implements DeviceChannelCopyWith<$R, $In, $Out> {
   @override
-  $R call({String? bleId, bool? canHost, bool? canJoin});
+  $R call({String? bleId, bool? canHost, bool? canJoin, bool? peerToPeer});
   BluetoothChannelCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -494,18 +503,21 @@ class _BluetoothChannelCopyWithImpl<$R, $Out>
   late final ClassMapperBase<BluetoothChannel> $mapper =
       BluetoothChannelMapper.ensureInitialized();
   @override
-  $R call({String? bleId, bool? canHost, bool? canJoin}) => $apply(
-    FieldCopyWithData({
-      if (bleId != null) #bleId: bleId,
-      if (canHost != null) #canHost: canHost,
-      if (canJoin != null) #canJoin: canJoin,
-    }),
-  );
+  $R call({String? bleId, bool? canHost, bool? canJoin, bool? peerToPeer}) =>
+      $apply(
+        FieldCopyWithData({
+          if (bleId != null) #bleId: bleId,
+          if (canHost != null) #canHost: canHost,
+          if (canJoin != null) #canJoin: canJoin,
+          if (peerToPeer != null) #peerToPeer: peerToPeer,
+        }),
+      );
   @override
   BluetoothChannel $make(CopyWithData data) => BluetoothChannel(
     bleId: data.get(#bleId, or: $value.bleId),
     canHost: data.get(#canHost, or: $value.canHost),
     canJoin: data.get(#canJoin, or: $value.canJoin),
+    peerToPeer: data.get(#peerToPeer, or: $value.peerToPeer),
   );
 
   @override

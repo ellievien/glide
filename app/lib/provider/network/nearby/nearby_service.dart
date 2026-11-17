@@ -1,17 +1,19 @@
 // Nearby: finds Glide devices over Bluetooth Low Energy while the app is open,
-// even when they are not on the same network, and sets up a temporary Wi-Fi
-// Direct network for the transfer itself, torn down once it is over.
+// even when they are not on the same network, and sets up a direct Wi-Fi link
+// for the transfer itself, torn down once it is over.
 //
 // Roles, per transfer:
 // - The sender is the BLE central. It reads the receiver's [NearbyPeerInfo]
 //   and writes a [NearbyRequest] to the control characteristic.
-// - The receiver is the BLE peripheral. It answers on the same
-//   characteristic, which the sender polls.
-// - Whoever can host (Android) creates the Wi-Fi Direct group, preferring
-//   the receiver; the other one joins it. The regular HTTP transfer then runs
-//   over that network, pinned to the fingerprint read over BLE.
+// - The receiver is the BLE peripheral ([NearbyPeripheral]). It answers on
+//   the same characteristic, which the sender polls.
+// - How the link comes up is a [NearbyLinkMode]: Apple peer-to-peer Wi-Fi
+//   between Apple devices, otherwise whoever can host (Android, Windows,
+//   Linux) creates a network, preferring the receiver, and the other side
+//   joins it. If one way fails, the next one is tried. The regular HTTP
+//   transfer then runs over the link, pinned to the fingerprint read over BLE.
 // - When the send session ends, the sender writes [NearbyEndRequest] and both
-//   sides leave the network. A watchdog on the receiver covers senders that
+//   sides drop the link. A watchdog on the receiver covers senders that
 //   disappear without saying so.
 import 'dart:async';
 import 'dart:io';
@@ -25,6 +27,7 @@ import 'package:glide/model/state/send/send_session_state.dart';
 import 'package:glide/provider/device_info_provider.dart';
 import 'package:glide/provider/device_visibility_provider.dart';
 import 'package:glide/provider/favorites_provider.dart';
+import 'package:glide/provider/network/nearby/nearby_peripheral.dart';
 import 'package:glide/provider/network/nearby/nearby_protocol.dart';
 import 'package:glide/provider/network/nearby/wifi_link.dart';
 import 'package:glide/provider/network/nearby_devices_provider.dart';
@@ -98,19 +101,26 @@ class NearbyException implements Exception {
   String toString() => message;
 }
 
+/// A request the receiver answered with [NearbyErrorResponse].
+class _RemoteNearbyException extends NearbyException {
+  final bool retryable;
+
+  const _RemoteNearbyException(super.message, {required this.retryable});
+}
+
 /// The temporary network of one send session, as seen by the sender.
 class NearbyLink {
   final String bleId;
 
-  /// Who created the network; the other side joined it.
-  final NearbyWifiHost host;
+  /// How the network came about.
+  final NearbyLinkMode mode;
 
   /// Where the receiver's HTTP server answers on the temporary network.
   final String ip;
   final int port;
   final bool https;
 
-  const NearbyLink({required this.bleId, required this.host, required this.ip, required this.port, required this.https});
+  const NearbyLink({required this.bleId, required this.mode, required this.ip, required this.port, required this.https});
 }
 
 class _Peer {
@@ -129,7 +139,9 @@ class _Peer {
 
 /// The temporary network on the receiving side.
 class _ReceiverNetwork {
-  final NearbyWifiHost role;
+  final NearbyLinkMode mode;
+
+  /// The SSID of the network, or the Bonjour service name in peer-to-peer mode.
   final String ssid;
 
   /// The address the sender was told to dial.
@@ -140,11 +152,12 @@ class _ReceiverNetwork {
   final Set<String> senders;
   DateTime lastActive;
 
-  _ReceiverNetwork({required this.role, required this.ssid, required this.ip, required this.senders, required this.lastActive});
+  _ReceiverNetwork({required this.mode, required this.ssid, required this.ip, required this.senders, required this.lastActive});
 }
 
 class NearbyService extends Notifier<NearbyState> {
   final WifiLink _wifi = WifiLink.forPlatform();
+  final NearbyPeripheral _peripheral = NearbyPeripheral.forPlatform();
 
   final _peers = <String, _Peer>{};
   final _resolveQueue = <String>[];
@@ -335,40 +348,10 @@ class NearbyService extends Notifier<NearbyState> {
       return;
     }
     try {
-      final capabilities = await UniversalBlePeripheral.getCapabilities();
-      if (!capabilities.supportsPeripheralMode) {
-        _logger.info('This device cannot act as a BLE peripheral; it can find others but cannot be found.');
-        return;
+      _advertising = await _peripheral.start(onRead: _onReadRequest, onWrite: _onWriteRequest);
+      if (_advertising) {
+        _logger.info('Advertising over BLE');
       }
-      final readiness = await UniversalBlePeripheral.getAvailabilityState();
-      if (readiness != PeripheralReadinessState.ready) {
-        _logger.info('BLE peripheral not ready: $readiness');
-        return;
-      }
-      UniversalBlePeripheral.setReadRequestHandlers(_onReadRequest);
-      UniversalBlePeripheral.setWriteRequestHandlers(_onWriteRequest);
-      await UniversalBlePeripheral.clearServices();
-      await UniversalBlePeripheral.addService(
-        BlePeripheralService(
-          uuid: nearbyServiceUuid,
-          characteristics: [
-            BlePeripheralCharacteristic(
-              uuid: nearbyInfoCharacteristicUuid,
-              properties: [CharacteristicProperty.read],
-              permissions: [PeripheralAttributePermission.readable],
-            ),
-            BlePeripheralCharacteristic(
-              uuid: nearbyControlCharacteristicUuid,
-              properties: [CharacteristicProperty.read, CharacteristicProperty.write],
-              permissions: [PeripheralAttributePermission.readable, PeripheralAttributePermission.writeable],
-            ),
-          ],
-        ),
-      );
-      // No local name: on Android it would rename the system Bluetooth device.
-      await UniversalBlePeripheral.startAdvertising(services: [nearbyServiceUuid]);
-      _advertising = true;
-      _logger.info('Advertising over BLE');
     } catch (e, st) {
       _logger.warning('Could not advertise over BLE', e, st);
     }
@@ -380,8 +363,7 @@ class NearbyService extends Notifier<NearbyState> {
     }
     _advertising = false;
     try {
-      await UniversalBlePeripheral.stopAdvertising();
-      await UniversalBlePeripheral.clearServices();
+      await _peripheral.stop();
     } catch (e) {
       _logger.fine('Stopping the BLE peripheral failed', e);
     }
@@ -407,25 +389,20 @@ class NearbyService extends Notifier<NearbyState> {
     );
   }
 
-  PeripheralReadRequestResult? _onReadRequest(String deviceId, String characteristicId, int offset, Uint8List? value) {
-    final characteristic = BleUuidParser.string(characteristicId);
+  Uint8List? _onReadRequest(String deviceId, String characteristic) {
     if (characteristic == nearbyInfoCharacteristicUuid) {
-      final info = _ownInfo();
-      if (info == null) {
-        return PeripheralReadRequestResult(value: Uint8List(0));
-      }
-      return PeripheralReadRequestResult(value: info.toBytes());
+      return _ownInfo()?.toBytes() ?? Uint8List(0);
     }
     if (characteristic == nearbyControlCharacteristicUuid) {
       final response = _responses[_centralKey(deviceId)] ?? const NearbyIdleResponse();
-      return PeripheralReadRequestResult(value: response.toBytes());
+      return response.toBytes();
     }
     return null;
   }
 
-  PeripheralWriteRequestResult? _onWriteRequest(String deviceId, String characteristicId, int offset, Uint8List? value) {
-    if (BleUuidParser.string(characteristicId) != nearbyControlCharacteristicUuid || value == null) {
-      return null;
+  void _onWriteRequest(String deviceId, String characteristic, Uint8List value) {
+    if (characteristic != nearbyControlCharacteristicUuid) {
+      return;
     }
     final central = _centralKey(deviceId);
     try {
@@ -439,7 +416,6 @@ class NearbyService extends Notifier<NearbyState> {
       _logger.warning('Invalid Nearby request from $central', e);
       _responses[central] = NearbyErrorResponse('Invalid request: ${e.message}');
     }
-    return PeripheralWriteRequestResult();
   }
 
   static String _centralKey(String deviceId) => deviceId.toLowerCase();
@@ -450,11 +426,14 @@ class NearbyService extends Notifier<NearbyState> {
       response = switch (request) {
         NearbyHostRequest() => await _handleHostRequest(central, request),
         NearbyJoinRequest() => await _handleJoinRequest(central, request),
+        NearbyPeerToPeerRequest() => await _handlePeerToPeerRequest(central, request),
         NearbyEndRequest() => await _handleEndRequest(central, request),
       };
     } catch (e, st) {
       _logger.warning('Nearby request ${request.runtimeType} from $central failed', e, st);
-      response = NearbyErrorResponse(e.toString());
+      // Refusals are NearbyExceptions; anything else failed while setting up
+      // Wi-Fi, and the sender may try another way.
+      response = NearbyErrorResponse(e.toString(), retryable: e is! NearbyException);
     }
     _responses[central] = response;
   }
@@ -480,14 +459,14 @@ class NearbyService extends Notifier<NearbyState> {
       throw const NearbyException('This device cannot host a Wi-Fi Direct network');
     }
     final existing = _receiverNetwork;
-    if (existing != null && existing.role != NearbyWifiHost.receiver) {
+    if (existing != null && existing.mode != NearbyLinkMode.receiverHosts) {
       throw const NearbyException('Busy with another transfer');
     }
     _logger.info('Hosting a Wi-Fi Direct network for ${request.alias}');
     final network = await _wifi.startHosting();
     final server = ref.read(serverProvider)!;
     _setReceiverNetwork(
-      existing ?? _ReceiverNetwork(role: NearbyWifiHost.receiver, ssid: network.ssid, ip: network.ip, senders: {}, lastActive: DateTime.now()),
+      existing ?? _ReceiverNetwork(mode: NearbyLinkMode.receiverHosts, ssid: network.ssid, ip: network.ip, senders: {}, lastActive: DateTime.now()),
       request.fingerprint,
     );
     return NearbyHostingResponse(ssid: network.ssid, passphrase: network.passphrase, ip: network.ip, port: server.port, https: server.https);
@@ -499,7 +478,7 @@ class NearbyService extends Notifier<NearbyState> {
       throw const NearbyException('This device cannot join a Wi-Fi Direct network');
     }
     final existing = _receiverNetwork;
-    if (existing != null && (existing.role != NearbyWifiHost.sender || existing.ssid != request.ssid)) {
+    if (existing != null && (existing.mode != NearbyLinkMode.senderHosts || existing.ssid != request.ssid)) {
       throw const NearbyException('Busy with another transfer');
     }
     final String ip;
@@ -518,10 +497,33 @@ class NearbyService extends Notifier<NearbyState> {
     }
     final server = ref.read(serverProvider)!;
     _setReceiverNetwork(
-      existing ?? _ReceiverNetwork(role: NearbyWifiHost.sender, ssid: request.ssid, ip: ip, senders: {}, lastActive: DateTime.now()),
+      existing ?? _ReceiverNetwork(mode: NearbyLinkMode.senderHosts, ssid: request.ssid, ip: ip, senders: {}, lastActive: DateTime.now()),
       request.fingerprint,
     );
     return NearbyJoinedResponse(ip: ip, port: server.port, https: server.https);
+  }
+
+  Future<NearbyResponse> _handlePeerToPeerRequest(String central, NearbyPeerToPeerRequest request) async {
+    _checkSenderAllowed(request.fingerprint);
+    if (!_wifi.capabilities.peerToPeer) {
+      throw const NearbyException('This device does not support peer-to-peer Wi-Fi');
+    }
+    final existing = _receiverNetwork;
+    if (existing != null && existing.mode != NearbyLinkMode.peerToPeer) {
+      throw const NearbyException('Busy with another transfer');
+    }
+    final server = ref.read(serverProvider)!;
+    // Unique enough to tell nearby Glide devices apart; only this sender looks for it.
+    final serviceName = existing?.ssid ?? 'Glide-${ref.read(securityProvider).certificateHash.substring(0, 16)}';
+    if (existing == null) {
+      _logger.info('Advertising over peer-to-peer Wi-Fi for ${request.alias}');
+      await _wifi.advertisePeerToPeer(name: serviceName, port: server.port);
+    }
+    _setReceiverNetwork(
+      existing ?? _ReceiverNetwork(mode: NearbyLinkMode.peerToPeer, ssid: serviceName, ip: '', senders: {}, lastActive: DateTime.now()),
+      request.fingerprint,
+    );
+    return NearbyPeerToPeerResponse(serviceName: serviceName, port: server.port, https: server.https);
   }
 
   Future<NearbyResponse> _handleEndRequest(String central, NearbyEndRequest request) async {
@@ -570,10 +572,12 @@ class NearbyService extends Notifier<NearbyState> {
     _watchdogTimer = null;
     _logger.info('Leaving the temporary network ${network.ssid} ($reason)');
     try {
-      switch (network.role) {
-        case NearbyWifiHost.receiver:
+      switch (network.mode) {
+        case NearbyLinkMode.peerToPeer:
+          await _wifi.stopAdvertisingPeerToPeer();
+        case NearbyLinkMode.receiverHosts:
           await _wifi.stopHosting();
-        case NearbyWifiHost.sender:
+        case NearbyLinkMode.senderHosts:
           await _wifi.leave();
       }
     } catch (e) {
@@ -695,7 +699,9 @@ class NearbyService extends Notifier<NearbyState> {
       deviceModel: info.deviceModel,
       deviceType: info.deviceType,
       download: false,
-      channels: [BluetoothChannel(bleId: peer.bleId, canHost: info.wifi.canHost, canJoin: info.wifi.canJoin)],
+      channels: [
+        BluetoothChannel(bleId: peer.bleId, canHost: info.wifi.canHost, canJoin: info.wifi.canJoin, peerToPeer: info.wifi.peerToPeer),
+      ],
     );
     final current = ref.read(nearbyDevicesProvider).bluetoothDevices[info.fingerprint];
     if (current != device) {
@@ -733,23 +739,73 @@ class NearbyService extends Notifier<NearbyState> {
     if (channel == null) {
       throw NearbyException(t.glide.nearby.errors.incompatible(device: target.alias));
     }
-    final host = decideWifiHost(
+    final modes = candidateLinkModes(
       sender: _wifi.capabilities,
-      receiver: NearbyWifiCapabilities(canHost: channel.canHost, canJoin: channel.canJoin),
+      receiver: NearbyWifiCapabilities(canHost: channel.canHost, canJoin: channel.canJoin, peerToPeer: channel.peerToPeer),
     );
-    if (host == null) {
+    if (modes.isEmpty) {
       throw NearbyException(t.glide.nearby.errors.incompatible(device: target.alias));
     }
 
     state = state.copyWith(connectingSessions: {...state.connectingSessions, sessionId});
     _exchangeCount++;
+    try {
+      Object? lastError;
+      for (final mode in modes) {
+        if (ref.read(sendProvider)[sessionId] == null) {
+          throw const NearbyException('Canceled');
+        }
+        try {
+          final link = await _openLinkWithMode(target: target, channel: channel, mode: mode);
+          _senderLinks[sessionId] = link;
+          _logger.info('Link to ${target.alias} is up ($mode), receiver at ${link.ip}:${link.port}');
+          // The session may have been canceled meanwhile.
+          _onSendSessionsChanged(ref.read(sendProvider));
+          return link;
+        } catch (e, st) {
+          _logger.warning('Could not connect to ${target.alias} with $mode', e, st);
+          lastError = e;
+          final retryable = e is WifiLinkException || (e is _RemoteNearbyException && e.retryable);
+          if (!retryable) {
+            break;
+          }
+        }
+      }
+      throw switch (lastError) {
+        NearbyException() => lastError,
+        TimeoutException() => NearbyException(t.glide.nearby.errors.timeout(device: target.alias)),
+        WifiLinkException(:final message) => NearbyException(t.glide.nearby.errors.wifi(reason: message)),
+        _ => NearbyException(t.glide.nearby.errors.wifi(reason: lastError.toString())),
+      };
+    } finally {
+      _exchangeCount--;
+      state = state.copyWith(connectingSessions: {...state.connectingSessions}..remove(sessionId));
+    }
+  }
+
+  /// Sets up one [mode]; on failure everything it set up is undone again.
+  Future<NearbyLink> _openLinkWithMode({required Device target, required BluetoothChannel channel, required NearbyLinkMode mode}) async {
     final self = ref.read(deviceFullInfoProvider);
     var hosting = false;
     var joined = false;
+    var resolving = false;
     try {
-      final NearbyLink link;
-      switch (host) {
-        case NearbyWifiHost.receiver:
+      switch (mode) {
+        case NearbyLinkMode.peerToPeer:
+          final response = await _exchange<NearbyPeerToPeerResponse>(
+            channel.bleId,
+            NearbyPeerToPeerRequest(fingerprint: self.fingerprint, alias: self.alias),
+            timeout: const Duration(seconds: 30),
+          );
+          resolving = true;
+          final ip = await _wifi
+              .resolvePeerToPeer(name: response.serviceName)
+              .timeout(
+                const Duration(seconds: 30),
+                onTimeout: () => throw WifiLinkException('${target.alias} was not found over peer-to-peer Wi-Fi'),
+              );
+          return NearbyLink(bleId: channel.bleId, mode: mode, ip: ip, port: response.port, https: response.https);
+        case NearbyLinkMode.receiverHosts:
           final response = await _exchange<NearbyHostingResponse>(
             channel.bleId,
             NearbyHostRequest(fingerprint: self.fingerprint, alias: self.alias),
@@ -759,8 +815,8 @@ class NearbyService extends Notifier<NearbyState> {
           await _wifi
               .join(ssid: response.ssid, passphrase: response.passphrase, hostIp: response.ip)
               .timeout(const Duration(seconds: 60), onTimeout: () => throw WifiLinkException('Timed out joining ${response.ssid}'));
-          link = NearbyLink(bleId: channel.bleId, host: host, ip: response.ip, port: response.port, https: response.https);
-        case NearbyWifiHost.sender:
+          return NearbyLink(bleId: channel.bleId, mode: mode, ip: response.ip, port: response.port, https: response.https);
+        case NearbyLinkMode.senderHosts:
           hosting = true;
           final network = await _wifi.startHosting().timeout(
             const Duration(seconds: 30),
@@ -778,31 +834,21 @@ class NearbyService extends Notifier<NearbyState> {
             // Joining can wait for the user to confirm a system prompt (iOS).
             timeout: const Duration(seconds: 90),
           );
-          link = NearbyLink(bleId: channel.bleId, host: host, ip: response.ip, port: response.port, https: response.https);
+          return NearbyLink(bleId: channel.bleId, mode: mode, ip: response.ip, port: response.port, https: response.https);
       }
-      _senderLinks[sessionId] = link;
-      _logger.info('Temporary network to ${target.alias} is up, receiver at ${link.ip}:${link.port}');
-      // The session may have been canceled meanwhile.
-      _onSendSessionsChanged(ref.read(sendProvider));
-      return link;
-    } catch (e, st) {
-      _logger.warning('Could not set up the temporary network to ${target.alias}', e, st);
-      unawaited(_sendEnd(channel.bleId, self.fingerprint));
+    } catch (_) {
+      // Tell the receiver first, so it does not keep its side up.
+      await _sendEnd(channel.bleId, self.fingerprint);
       if (joined) {
         await _wifi.leave().catchError((Object _) {});
       }
       if (hosting) {
         await _wifi.stopHosting().catchError((Object _) {});
       }
-      throw switch (e) {
-        NearbyException() => e,
-        TimeoutException() => NearbyException(t.glide.nearby.errors.timeout(device: target.alias)),
-        WifiLinkException() => NearbyException(t.glide.nearby.errors.wifi(reason: e.message)),
-        _ => NearbyException(t.glide.nearby.errors.wifi(reason: e.toString())),
-      };
-    } finally {
-      _exchangeCount--;
-      state = state.copyWith(connectingSessions: {...state.connectingSessions}..remove(sessionId));
+      if (resolving) {
+        await _wifi.stopResolvingPeerToPeer().catchError((Object _) {});
+      }
+      rethrow;
     }
   }
 
@@ -825,10 +871,12 @@ class NearbyService extends Notifier<NearbyState> {
     _logger.info('Transfer over, leaving the temporary network');
     await _sendEnd(link.bleId, ref.read(securityProvider).certificateHash);
     try {
-      switch (link.host) {
-        case NearbyWifiHost.receiver:
+      switch (link.mode) {
+        case NearbyLinkMode.peerToPeer:
+          await _wifi.stopResolvingPeerToPeer();
+        case NearbyLinkMode.receiverHosts:
           await _wifi.leave();
-        case NearbyWifiHost.sender:
+        case NearbyLinkMode.senderHosts:
           await _wifi.stopHosting();
       }
     } catch (e) {
@@ -872,8 +920,8 @@ class NearbyService extends Notifier<NearbyState> {
         switch (response) {
           case T():
             return response;
-          case NearbyErrorResponse(:final message):
-            throw NearbyException(message);
+          case NearbyErrorResponse(:final message, :final retryable):
+            throw _RemoteNearbyException(message, retryable: retryable);
           case NearbyPendingResponse() || NearbyIdleResponse():
             await Future<void>.delayed(const Duration(milliseconds: 500));
           default:

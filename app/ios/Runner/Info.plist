@@ -107,6 +107,11 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<!-- Nearby: peer-to-peer Wi-Fi between Apple devices (nearbyBonjourType). -->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_glide-p2p._tcp</string>
+	</array>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Glide uses Bluetooth to find nearby devices that are not on your Wi-Fi, so you can send files to them directly.</string>
 	<key>NSLocalNetworkUsageDescription</key>

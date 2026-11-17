@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "nearby_wifi.h"
 #include "win32_window.h"
 
 // A window that does nothing but host a Flutter view.
@@ -28,6 +29,9 @@ class FlutterWindow : public Win32Window {
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+
+  // Wi-Fi Direct hosting for Nearby transfers.
+  std::unique_ptr<NearbyWifi> nearby_wifi_;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

@@ -56,7 +56,10 @@ class BluetoothChannel extends DeviceChannel with BluetoothChannelMappable {
   /// Whether the device can join a temporary network created by this one.
   final bool canJoin;
 
-  const BluetoothChannel({required this.bleId, required this.canHost, required this.canJoin});
+  /// Whether the device supports Apple's peer-to-peer Wi-Fi (AWDL).
+  final bool peerToPeer;
+
+  const BluetoothChannel({required this.bleId, required this.canHost, required this.canJoin, this.peerToPeer = false});
 }
 
 /// Whether a [DeviceLog] discovered the device or re-confirmed it.

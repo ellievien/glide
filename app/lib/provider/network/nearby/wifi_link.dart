@@ -1,13 +1,13 @@
-// Platform access to the temporary Wi-Fi network of a Nearby transfer.
+// Platform access to the temporary network of a Nearby transfer.
 //
 // - Android hosts a Wi-Fi Direct group (which legacy WPA2 clients can join as
 //   a regular access point) and joins other Android groups as a P2P client.
-// - iOS and macOS join through the system (NEHotspotConfiguration / CoreWLAN).
-// - Windows joins with a temporary WLAN profile (wlanapi.dll).
-// - Linux joins, and hosts a hotspot, through NetworkManager (nmcli).
-//
-// Apple platforms and Windows cannot host: they offer an app no way to create
-// a network the other device can join without user interaction or admin rights.
+// - Windows hosts a Wi-Fi Direct legacy access point (WinRT, in the runner)
+//   and joins with a temporary WLAN profile (wlanapi.dll).
+// - Linux hosts a hotspot and joins through NetworkManager (nmcli).
+// - iOS and macOS join through the system (NEHotspotConfiguration /
+//   CoreWLAN), and talk to each other over peer-to-peer Wi-Fi (AWDL), found
+//   through Bonjour, so that two Apple devices need no host at all.
 import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
@@ -43,6 +43,8 @@ class WifiLinkException implements Exception {
 }
 
 abstract class WifiLink {
+  WifiLink();
+
   /// Resolved once by [init]; [NearbyWifiCapabilities.none] until then.
   NearbyWifiCapabilities get capabilities;
 
@@ -62,6 +64,20 @@ abstract class WifiLink {
   /// previous one. No-op when not joined.
   Future<void> leave();
 
+  /// Advertises this device's HTTP server at [port] over Apple's
+  /// peer-to-peer Wi-Fi (Bonjour with AWDL) under the service [name].
+  Future<void> advertisePeerToPeer({required String name, required int port}) =>
+      throw const WifiLinkException('Peer-to-peer Wi-Fi is only available on Apple devices');
+
+  Future<void> stopAdvertisingPeerToPeer() async {}
+
+  /// Finds the service [name] advertised by [advertisePeerToPeer] and
+  /// returns an address of it that is reachable over peer-to-peer Wi-Fi.
+  /// Keeps the peer-to-peer link up until [stopResolvingPeerToPeer].
+  Future<String> resolvePeerToPeer({required String name}) => throw const WifiLinkException('Peer-to-peer Wi-Fi is only available on Apple devices');
+
+  Future<void> stopResolvingPeerToPeer() async {}
+
   factory WifiLink.forPlatform() {
     if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS) {
       return _ChannelWifiLink();
@@ -74,6 +90,13 @@ abstract class WifiLink {
     }
     return _UnsupportedWifiLink();
   }
+}
+
+/// A random string for network names and passphrases, without look-alike characters.
+String _randomString(int length) {
+  const alphabet = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  final random = Random.secure();
+  return List.generate(length, (_) => alphabet[random.nextInt(alphabet.length)]).join();
 }
 
 /// Waits until one of this device's IPv4 addresses is in the subnet of
@@ -98,7 +121,7 @@ Future<String> waitForAddressInSubnet(String hostIp, {Duration timeout = const D
 
 /// Android, iOS and macOS: implemented natively behind a method channel
 /// (MainActivity / AppDelegate).
-class _ChannelWifiLink implements WifiLink {
+class _ChannelWifiLink extends WifiLink {
   static const _channel = MethodChannel('org.glideapp.glide/nearby_wifi');
 
   @override
@@ -111,6 +134,7 @@ class _ChannelWifiLink implements WifiLink {
       capabilities = NearbyWifiCapabilities(
         canHost: result?['canHost'] == true,
         canJoin: result?['canJoin'] == true,
+        peerToPeer: result?['peerToPeer'] == true,
       );
     } on MissingPluginException {
       capabilities = NearbyWifiCapabilities.none;
@@ -141,6 +165,25 @@ class _ChannelWifiLink implements WifiLink {
   @override
   Future<void> leave() => _invoke<void>('leave');
 
+  @override
+  Future<void> advertisePeerToPeer({required String name, required int port}) =>
+      _invoke<void>('advertisePeerToPeer', {'name': name, 'type': nearbyBonjourType, 'port': port});
+
+  @override
+  Future<void> stopAdvertisingPeerToPeer() => _invoke<void>('stopAdvertisingPeerToPeer');
+
+  @override
+  Future<String> resolvePeerToPeer({required String name}) async {
+    final address = await _invoke<String>('resolvePeerToPeer', {'name': name, 'type': nearbyBonjourType});
+    if (address == null) {
+      throw WifiLinkException('$name has no peer-to-peer address');
+    }
+    return address;
+  }
+
+  @override
+  Future<void> stopResolvingPeerToPeer() => _invoke<void>('stopResolvingPeerToPeer');
+
   Future<T?> _invoke<T>(String method, [Map<String, Object?>? arguments]) async {
     try {
       return await _channel.invokeMethod<T>(method, arguments);
@@ -150,11 +193,16 @@ class _ChannelWifiLink implements WifiLink {
   }
 }
 
-/// Windows: a temporary, manually connecting WLAN profile on the first
-/// wireless interface. Deleting the profile disconnects, after which Windows
-/// reconnects to the user's preferred network on its own.
-class _WindowsWifiLink implements WifiLink {
+/// Windows:
+/// - joining uses a temporary, manually connecting WLAN profile on the first
+///   wireless interface (wlanapi.dll). Deleting the profile disconnects, after
+///   which Windows reconnects to the user's preferred network on its own.
+/// - hosting starts a Wi-Fi Direct advertisement with legacy access point
+///   settings (WinRT, in the runner's nearby_wifi.cpp), which iPhones, Macs
+///   and other PCs join like a regular WPA2 network.
+class _WindowsWifiLink extends WifiLink {
   static const _profileName = 'Glide Nearby';
+  static const _channel = MethodChannel('org.glideapp.glide/nearby_wifi');
 
   @override
   NearbyWifiCapabilities capabilities = NearbyWifiCapabilities.none;
@@ -162,22 +210,92 @@ class _WindowsWifiLink implements WifiLink {
   /// The interface the profile was added to, while joined.
   String? _joinedInterface;
 
+  HostedWifiNetwork? _hosted;
+
   @override
   Future<void> init() async {
+    var canJoin = false;
     try {
-      final hasInterface = _withClient((client) => _firstInterfaceGuid(client) != null);
-      capabilities = NearbyWifiCapabilities(canHost: false, canJoin: hasInterface);
+      canJoin = _withClient((client) => _firstInterfaceGuid(client) != null);
     } catch (e) {
       _logger.info('No usable WLAN interface', e);
-      capabilities = NearbyWifiCapabilities.none;
+    }
+    var canHost = false;
+    try {
+      final result = await _channel.invokeMapMethod<String, Object?>('capabilities');
+      canHost = canJoin && result?['canHost'] == true;
+    } on MissingPluginException {
+      canHost = false;
+    } on PlatformException catch (e) {
+      _logger.info('Wi-Fi Direct hosting is not available', e);
+    }
+    capabilities = NearbyWifiCapabilities(canHost: canHost, canJoin: canJoin);
+  }
+
+  @override
+  Future<HostedWifiNetwork> startHosting() async {
+    final hosted = _hosted;
+    if (hosted != null) {
+      return hosted;
+    }
+    // The access point gets its own virtual adapter; its address is the one
+    // that was not there before.
+    final before = await _ipv4Addresses();
+    final ssid = 'DIRECT-${_randomString(2)}-Glide';
+    final passphrase = _randomString(12);
+    try {
+      await _channel.invokeMethod<void>('startHosting', {'ssid': ssid, 'passphrase': passphrase});
+    } on PlatformException catch (e) {
+      throw WifiLinkException(e.message ?? e.code);
+    }
+    final deadline = DateTime.now().add(const Duration(seconds: 20));
+    while (true) {
+      final status = await _channel.invokeMapMethod<String, Object?>('hostingStatus');
+      if (status?['status'] == 'aborted') {
+        await _stopHostingNow();
+        // WiFiDirectError: 1 = radio not available, 2 = resource in use.
+        final reason = switch (status?['error']) {
+          1 => 'the Wi-Fi adapter does not support Wi-Fi Direct or is turned off',
+          2 => 'Wi-Fi Direct is in use by another app',
+          final code => 'error $code',
+        };
+        throw WifiLinkException('Could not start the Wi-Fi Direct access point: $reason');
+      }
+      final added = (await _ipv4Addresses()).difference(before);
+      if (added.isNotEmpty) {
+        // Internet Connection Sharing's range, which the access point uses, first.
+        final ip = added.firstWhere((a) => a.startsWith('192.168.137.'), orElse: () => added.first);
+        return _hosted = HostedWifiNetwork(ssid: ssid, passphrase: passphrase, ip: ip);
+      }
+      if (DateTime.now().isAfter(deadline)) {
+        await _stopHostingNow();
+        throw const WifiLinkException('The Wi-Fi Direct access point got no address');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
     }
   }
 
   @override
-  Future<HostedWifiNetwork> startHosting() => throw const WifiLinkException('Hosting a network is not supported on Windows');
+  Future<void> stopHosting() async {
+    if (_hosted == null) {
+      return;
+    }
+    await _stopHostingNow();
+  }
 
-  @override
-  Future<void> stopHosting() async {}
+  Future<void> _stopHostingNow() async {
+    _hosted = null;
+    try {
+      await _channel.invokeMethod<void>('stopHosting');
+    } on PlatformException catch (e) {
+      _logger.warning('Could not stop the Wi-Fi Direct access point', e);
+    }
+  }
+
+  static Future<Set<String>> _ipv4Addresses() async {
+    final interfaces = await NetworkInterface.list(type: InternetAddressType.IPv4);
+    return {for (final interface in interfaces) ...interface.addresses.map((a) => a.address)};
+  }
 
   @override
   Future<String> join({required String ssid, required String passphrase, required String hostIp}) async {
@@ -305,7 +423,7 @@ class _WindowsWifiLink implements WifiLink {
 /// - hosting turns the Wi-Fi adapter into a hotspot ([_hostConnection]),
 ///   deleted on [stopHosting].
 /// Either way NetworkManager reconnects to the previous network afterwards.
-class _LinuxWifiLink implements WifiLink {
+class _LinuxWifiLink extends WifiLink {
   static const _joinConnection = 'glide-nearby';
   static const _hostConnection = 'glide-nearby-hotspot';
 
@@ -436,15 +554,9 @@ class _LinuxWifiLink implements WifiLink {
   }
 
   static Future<ProcessResult> _nmcli(List<String> arguments) => Process.run('nmcli', arguments);
-
-  static String _randomString(int length) {
-    const alphabet = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    final random = Random.secure();
-    return List.generate(length, (_) => alphabet[random.nextInt(alphabet.length)]).join();
-  }
 }
 
-class _UnsupportedWifiLink implements WifiLink {
+class _UnsupportedWifiLink extends WifiLink {
   @override
   NearbyWifiCapabilities get capabilities => NearbyWifiCapabilities.none;
 

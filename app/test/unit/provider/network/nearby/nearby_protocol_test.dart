@@ -96,25 +96,70 @@ void main() {
       expect(NearbyResponse.fromBytes(const NearbyPendingResponse().toBytes()), isA<NearbyPendingResponse>());
       expect(NearbyResponse.fromBytes(const NearbyEndedResponse().toBytes()), isA<NearbyEndedResponse>());
       expect((NearbyResponse.fromBytes(const NearbyErrorResponse('nope').toBytes()) as NearbyErrorResponse).message, 'nope');
+      expect((NearbyResponse.fromBytes(const NearbyErrorResponse('nope').toBytes()) as NearbyErrorResponse).retryable, isFalse);
+      expect((NearbyResponse.fromBytes(const NearbyErrorResponse('wifi', retryable: true).toBytes()) as NearbyErrorResponse).retryable, isTrue);
     });
   });
 
-  group('decideWifiHost', () {
+  group('decideLinkMode', () {
     const android = NearbyWifiCapabilities(canHost: true, canJoin: true);
+    const windows = NearbyWifiCapabilities(canHost: true, canJoin: true);
+    const apple = NearbyWifiCapabilities(canHost: false, canJoin: true, peerToPeer: true);
     const joinOnly = NearbyWifiCapabilities(canHost: false, canJoin: true);
 
+    test('uses peer-to-peer Wi-Fi between Apple devices', () {
+      expect(decideLinkMode(sender: apple, receiver: apple), NearbyLinkMode.peerToPeer);
+    });
+
     test('prefers the receiver as host', () {
-      expect(decideWifiHost(sender: android, receiver: android), NearbyWifiHost.receiver);
-      expect(decideWifiHost(sender: joinOnly, receiver: android), NearbyWifiHost.receiver);
+      expect(decideLinkMode(sender: android, receiver: android), NearbyLinkMode.receiverHosts);
+      expect(decideLinkMode(sender: apple, receiver: windows), NearbyLinkMode.receiverHosts);
+      expect(decideLinkMode(sender: joinOnly, receiver: android), NearbyLinkMode.receiverHosts);
     });
 
     test('lets the sender host when the receiver can only join', () {
-      expect(decideWifiHost(sender: android, receiver: joinOnly), NearbyWifiHost.sender);
+      expect(decideLinkMode(sender: android, receiver: joinOnly), NearbyLinkMode.senderHosts);
+      expect(decideLinkMode(sender: windows, receiver: apple), NearbyLinkMode.senderHosts);
     });
 
-    test('gives up when nobody can host', () {
-      expect(decideWifiHost(sender: joinOnly, receiver: joinOnly), isNull);
-      expect(decideWifiHost(sender: NearbyWifiCapabilities.none, receiver: android), isNull);
+    test('lists every workable mode, best first, for fallbacks', () {
+      expect(candidateLinkModes(sender: android, receiver: windows), [NearbyLinkMode.receiverHosts, NearbyLinkMode.senderHosts]);
+      expect(candidateLinkModes(sender: apple, receiver: apple), [NearbyLinkMode.peerToPeer]);
+      expect(candidateLinkModes(sender: joinOnly, receiver: joinOnly), isEmpty);
+    });
+
+    test('gives up when nobody can host and peer-to-peer is not shared', () {
+      expect(decideLinkMode(sender: joinOnly, receiver: joinOnly), isNull);
+      expect(decideLinkMode(sender: apple, receiver: joinOnly), isNull);
+      expect(decideLinkMode(sender: NearbyWifiCapabilities.none, receiver: android), isNull);
+    });
+  });
+
+  group('peer-to-peer messages', () {
+    test('round-trip', () {
+      final request = NearbyRequest.fromBytes(const NearbyPeerToPeerRequest(fingerprint: 'F', alias: 'A').toBytes()) as NearbyPeerToPeerRequest;
+      expect(request.fingerprint, 'F');
+      expect(request.alias, 'A');
+
+      const response = NearbyPeerToPeerResponse(serviceName: 'Glide-0123456789ABCDEF', port: 53317, https: true);
+      final decoded = NearbyResponse.fromBytes(response.toBytes()) as NearbyPeerToPeerResponse;
+      expect(decoded.serviceName, response.serviceName);
+      expect(decoded.port, 53317);
+      expect(decoded.https, isTrue);
+    });
+
+    test('the capability travels in the info', () {
+      const info = NearbyPeerInfo(
+        version: nearbyProtocolVersion,
+        alias: 'iPhone',
+        fingerprint: 'F',
+        deviceModel: 'iPhone',
+        deviceType: DeviceType.mobile,
+        port: 53317,
+        https: true,
+        wifi: NearbyWifiCapabilities(canHost: false, canJoin: true, peerToPeer: true),
+      );
+      expect(NearbyPeerInfo.fromBytes(info.toBytes()).wifi.peerToPeer, isTrue);
     });
   });
 
