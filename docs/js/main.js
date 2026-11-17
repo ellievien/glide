@@ -142,9 +142,10 @@
     }
   }
 
-  // Only Stripe-hosted checkout URLs are accepted, so a typo in tip.js can
-  // never turn the tip button into a link to somewhere unexpected.
-  var TIP_URL_PATTERN = /^https:\/\/(buy|donate)\.stripe\.com\/[A-Za-z0-9_-]+$/;
+  // Only live Stripe-hosted checkout URLs are accepted, so a typo in tip.js
+  // can never point the button somewhere unexpected, and a sandbox link
+  // (buy.stripe.com/test_...) that charges no real money never goes live.
+  var TIP_URL_PATTERN = /^https:\/\/(buy|donate)\.stripe\.com\/(?!test_)[A-Za-z0-9_-]+$/;
 
   function renderTip(config) {
     var url = config && typeof config.url === "string" ? config.url.trim() : "";
