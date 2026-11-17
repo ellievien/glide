@@ -147,6 +147,8 @@ fvm flutter build appbundle
 fvm flutter build ipa
 ```
 
+**TestFlight from CI**: the "Build iOS (TestFlight)" workflow signs the app with automatic signing and uploads it to App Store Connect once the `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID` and `APP_STORE_CONNECT_KEY` secrets are set (see the workflow file); without them it only checks that the app compiles.
+
 ### macOS
 
 ```bash

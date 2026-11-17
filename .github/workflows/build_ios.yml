@@ -1,0 +1,140 @@
+name: Build iOS (TestFlight)
+
+# Builds the iOS app on macos-26 (Xcode 26: plugins such as connectivity_plus
+# need the iOS 26 SDK).
+#
+# With the App Store Connect API key secrets below, the app is signed with
+# automatic signing (Xcode creates or updates the certificate and provisioning
+# profiles in the cloud, including capabilities such as Hotspot Configuration)
+# and uploaded to App Store Connect, from where it reaches TestFlight.
+# Without them, the job only checks that the app compiles (--no-codesign).
+#
+# Secrets, from App Store Connect > Users and Access > Integrations >
+# App Store Connect API (a team key with the Admin role, which cloud signing needs):
+#   APP_STORE_CONNECT_KEY_ID     the key ID
+#   APP_STORE_CONNECT_ISSUER_ID  the issuer ID shown above the keys
+#   APP_STORE_CONNECT_KEY        the contents of the downloaded AuthKey_<ID>.p8
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_name:
+        description: "Version shown in TestFlight, e.g. 1.0.1. Empty: the version in app/pubspec.yaml. A version already released on the App Store accepts no new builds."
+        required: false
+        default: ""
+  workflow_call:
+  pull_request:
+    paths:
+      - .github/workflows/build_ios.yml
+
+env:
+  FLUTTER_VERSION: "3.41.9"
+
+jobs:
+  build:
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: "stable"
+
+      - name: Install Rust toolchain
+        working-directory: packages/localsend_isolates
+        run: rustup toolchain install --profile minimal # version from rust-toolchain.toml; cargokit adds the iOS targets
+
+      - name: Version
+        id: version
+        env:
+          BUILD_NAME_INPUT: ${{ inputs.build_name }}
+        run: |
+          PUBSPEC_VERSION=$(sed -n 's/^version: \([0-9]*\.[0-9]*\.[0-9]*\).*/\1/p' app/pubspec.yaml)
+          BUILD_NAME="${BUILD_NAME_INPUT:-$PUBSPEC_VERSION}"
+          # Unique and increasing, as App Store Connect requires per version.
+          BUILD_NUMBER=$(date -u +%Y%m%d%H%M)
+          echo "Building $BUILD_NAME ($BUILD_NUMBER)"
+          echo "build_name=$BUILD_NAME" >> "$GITHUB_OUTPUT"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Check signing secrets
+        id: signing
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
+        run: |
+          if [ -n "$KEY_ID" ] && [ -n "$ISSUER_ID" ] && [ -n "$KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::App Store Connect API key secrets are not set: building unsigned to check that the app compiles, nothing is uploaded to TestFlight."
+          fi
+
+      - name: Build (unsigned)
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter build ios --release --no-codesign \
+            --build-name=${{ steps.version.outputs.build_name }} \
+            --build-number=${{ steps.version.outputs.build_number }}
+
+      - name: Install the App Store Connect API key
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
+        run: |
+          KEY_PATH="$RUNNER_TEMP/AuthKey_$KEY_ID.p8"
+          printf '%s\n' "$KEY" > "$KEY_PATH"
+          echo "KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Archive (automatic signing)
+        if: steps.signing.outputs.enabled == 'true'
+        working-directory: app/ios
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcodebuild archive \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Glide.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER_ID"
+
+      - name: Upload to TestFlight
+        if: steps.signing.outputs.enabled == 'true'
+        working-directory: app/ios
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          # ExportOptions.plist exports for App Store Connect with destination
+          # "upload", so this signs the IPA for distribution and uploads it.
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Glide.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER_ID"
+          echo "::notice::Uploaded Glide ${{ steps.version.outputs.build_name }} (${{ steps.version.outputs.build_number }}). It appears in TestFlight once App Store Connect has processed it, usually within 15-30 minutes."
+
+      - name: Remove the API key
+        if: always() && steps.signing.outputs.enabled == 'true'
+        run: rm -f "$KEY_PATH"
+
+      - name: Upload unsigned app (compile check)
+        if: steps.signing.outputs.enabled != 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: ios-app-unsigned
+          path: app/build/ios/iphoneos/Runner.app
