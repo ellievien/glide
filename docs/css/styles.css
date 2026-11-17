@@ -257,7 +257,6 @@ section {
   gap: 18px;
   overflow-x: auto;
   padding: 8px 24px 20px;
-  margin: 0 -24px;
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
 }
