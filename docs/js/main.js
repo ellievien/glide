@@ -142,10 +142,30 @@
     }
   }
 
+  // Only Stripe-hosted checkout URLs are accepted, so a typo in tip.js can
+  // never turn the tip button into a link to somewhere unexpected.
+  var TIP_URL_PATTERN = /^https:\/\/(buy|donate)\.stripe\.com\/[A-Za-z0-9_-]+$/;
+
+  function renderTip(config) {
+    var url = config && typeof config.url === "string" ? config.url.trim() : "";
+    if (!TIP_URL_PATTERN.test(url)) return;
+
+    var btn = document.getElementById("tip-btn");
+    var section = document.getElementById("tip");
+    if (!btn || !section) return;
+
+    btn.href = url;
+    section.hidden = false;
+    Array.prototype.forEach.call(document.querySelectorAll("[data-tip-link]"), function (link) {
+      link.hidden = false;
+    });
+  }
+
   function init() {
     var grouped = groupDownloads(window.GLIDE_DOWNLOADS);
     renderDownloads(grouped);
     renderHero(grouped);
+    renderTip(window.GLIDE_TIP);
   }
 
   if (document.readyState === "loading") {
