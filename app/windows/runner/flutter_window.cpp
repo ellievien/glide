@@ -25,11 +25,14 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  nearby_wifi_ = std::make_unique<NearbyWifi>(flutter_controller_->engine()->messenger());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
   return true;
 }
 
 void FlutterWindow::OnDestroy() {
+  // Before the engine whose messenger it uses.
+  nearby_wifi_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }

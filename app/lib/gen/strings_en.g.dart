@@ -43,8 +43,8 @@ class Translations with BaseTranslations<AppLocale, Translations> {
 
   // Translations
 
-  /// en: 'GLIDE'
-  String get appName => 'GLIDE';
+  /// en: 'Glide'
+  String get appName => 'Glide';
 
   late final Translations$general$en general = Translations$general$en.internal(_root);
   late final Translations$glide$en glide = Translations$glide$en.internal(_root);
@@ -222,6 +222,7 @@ class Translations$glide$en {
   late final Translations$glide$deviceVisibility$en deviceVisibility = Translations$glide$deviceVisibility$en.internal(_root);
   late final Translations$glide$home$en home = Translations$glide$home$en.internal(_root);
   late final Translations$glide$sending$en sending = Translations$glide$sending$en.internal(_root);
+  late final Translations$glide$nearby$en nearby = Translations$glide$nearby$en.internal(_root);
   late final Translations$glide$landed$en landed = Translations$glide$landed$en.internal(_root);
   late final Translations$glide$incoming$en incoming = Translations$glide$incoming$en.internal(_root);
   late final Translations$glide$history$en history = Translations$glide$history$en.internal(_root);
@@ -1121,6 +1122,32 @@ class Translations$glide$sending$en {
 
   /// en: 'file'
   String get fileFallback => 'file';
+}
+
+// Path: glide.nearby
+class Translations$glide$nearby$en {
+  Translations$glide$nearby$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'Find devices over Bluetooth'
+  String get settingsLabel => 'Find devices over Bluetooth';
+
+  /// en: 'See Glide devices that are not on your Wi-Fi. Files go over a direct Wi-Fi link that closes after the transfer.'
+  String get settingsHint => 'See Glide devices that are not on your Wi-Fi. Files go over a direct Wi-Fi link that closes after the transfer.';
+
+  /// en: 'Connecting directly…'
+  String get connecting => 'Connecting directly…';
+
+  /// en: 'Turn on Bluetooth to also find devices that are not on your Wi-Fi.'
+  String get bluetoothOff => 'Turn on Bluetooth to also find devices that are not on your Wi-Fi.';
+
+  /// en: 'Allow Bluetooth and Nearby devices to find devices that are not on your Wi-Fi.'
+  String get permissionDenied => 'Allow Bluetooth and Nearby devices to find devices that are not on your Wi-Fi.';
+
+  late final Translations$glide$nearby$errors$en errors = Translations$glide$nearby$errors$en.internal(_root);
 }
 
 // Path: glide.landed
@@ -2172,6 +2199,24 @@ class Translations$dialogs$zoom$en {
 
   /// en: 'URL'
   String get title => 'URL';
+}
+
+// Path: glide.nearby.errors
+class Translations$glide$nearby$errors$en {
+  Translations$glide$nearby$errors$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'Can't reach {device} without a shared network. Connect both devices to the same Wi-Fi.'
+  String incompatible({required Object device}) => 'Can\'t reach ${device} without a shared network. Connect both devices to the same Wi-Fi.';
+
+  /// en: '{device} did not respond over Bluetooth.'
+  String timeout({required Object device}) => '${device} did not respond over Bluetooth.';
+
+  /// en: 'Could not set up a direct Wi-Fi link: {reason}'
+  String wifi({required Object reason}) => 'Could not set up a direct Wi-Fi link: ${reason}';
 }
 
 // Path: settingsTab.general.brightnessOptions

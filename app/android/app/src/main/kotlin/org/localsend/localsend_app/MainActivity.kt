@@ -44,6 +44,9 @@ class MainActivity : FlutterActivity() {
     private val pendingShareIntents = mutableListOf<Intent>()
     private var shareIntentReady = false
 
+    /// Wi-Fi Direct for Nearby transfers (see NearbyWifi).
+    private var nearbyWifi: NearbyWifi? = null
+
     override fun onNewIntent(intent: Intent) {
         if (!shareIntentReady && (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE)) {
             pendingShareIntents.add(intent)
@@ -75,6 +78,9 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        nearbyWifi = NearbyWifi(this).also {
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NEARBY_WIFI_CHANNEL).setMethodCallHandler(it)
+        }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             CHANNEL
@@ -138,6 +144,13 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    override fun onDestroy() {
+        // Never leave a temporary network behind.
+        nearbyWifi?.release()
+        nearbyWifi = null
+        super.onDestroy()
     }
 
     /// Android 17+ gates local network access behind a runtime permission; older versions grant it implicitly.

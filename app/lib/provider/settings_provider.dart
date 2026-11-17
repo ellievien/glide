@@ -75,6 +75,7 @@ class SettingsService extends PureNotifier<SettingsState> {
     verifyChecksums: _persistence.getVerifyChecksums(),
     discoveryTimeout: _persistence.getDiscoveryTimeout(),
     advancedSettings: _persistence.getAdvancedSettingsEnabled(),
+    nearbyBluetooth: _persistence.getNearbyBluetooth(),
   );
 
   Future<void> setAlias(String alias) async {
@@ -288,6 +289,13 @@ class SettingsService extends PureNotifier<SettingsState> {
     await _persistence.setCreateChecksums(createChecksums);
     state = state.copyWith(
       createChecksums: createChecksums,
+    );
+  }
+
+  Future<void> setNearbyBluetooth(bool enabled) async {
+    await _persistence.setNearbyBluetooth(enabled);
+    state = state.copyWith(
+      nearbyBluetooth: enabled,
     );
   }
 

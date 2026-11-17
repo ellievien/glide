@@ -1,5 +1,6 @@
 import 'package:glide/model/persistence/device_visibility.dart';
 import 'package:glide/model/state/server/server_state.dart';
+import 'package:glide/provider/network/nearby/nearby_service.dart';
 import 'package:glide/provider/network/server/server_provider.dart';
 import 'package:glide/provider/persistence_provider.dart';
 import 'package:glide/provider/settings_provider.dart';
@@ -40,5 +41,8 @@ class DeviceVisibilityService extends Notifier<DeviceVisibility> {
             discoverable: visibility != DeviceVisibility.hidden,
           ),
         );
+
+    // Bluetooth advertising follows the same switch.
+    await ref.notifier(nearbyProvider).refreshAdvertising();
   }
 }

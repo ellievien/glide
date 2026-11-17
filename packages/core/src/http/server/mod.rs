@@ -339,9 +339,44 @@ fn bind_ipv6_only(socket_addr: SocketAddr) -> anyhow::Result<tokio::net::TcpList
     #[cfg(not(windows))]
     socket.set_reuse_address(true)?;
     socket.set_nonblocking(true)?;
+    #[cfg(target_vendor = "apple")]
+    allow_peer_to_peer(&socket);
     socket.bind(&socket_addr.into())?;
     socket.listen(1024)?;
     Ok(tokio::net::TcpListener::from_std(socket.into())?)
+}
+
+/// Lets the listener accept connections over Apple's peer-to-peer Wi-Fi
+/// (AWDL, the `awdl0` interface), which BSD sockets refuse by default.
+///
+/// The app's Nearby transfers between Apple devices that share no network
+/// advertise the server through Bonjour with peer-to-peer enabled; the sender
+/// then connects to the receiver's link-local IPv6 address on `awdl0`.
+/// AWDL only carries IPv6, so only the IPv6 listener needs it.
+#[cfg(target_vendor = "apple")]
+fn allow_peer_to_peer(socket: &socket2::Socket) {
+    use std::os::fd::AsRawFd;
+
+    /// `SO_RECV_ANYIF` from `<sys/socket.h>`; not exported by the `libc` crate.
+    const SO_RECV_ANYIF: libc::c_int = 0x1104;
+
+    let enable: libc::c_int = 1;
+    // SAFETY: a valid socket descriptor and a pointer to a c_int of the given size.
+    let result = unsafe {
+        libc::setsockopt(
+            socket.as_raw_fd(),
+            libc::SOL_SOCKET,
+            SO_RECV_ANYIF,
+            std::ptr::addr_of!(enable).cast(),
+            std::mem::size_of_val(&enable) as libc::socklen_t,
+        )
+    };
+    if result != 0 {
+        tracing::warn!(
+            "Could not enable peer-to-peer connections: {}",
+            std::io::Error::last_os_error()
+        );
+    }
 }
 
 #[derive(Clone, Debug)]

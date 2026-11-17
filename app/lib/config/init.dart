@@ -12,6 +12,7 @@ import 'package:glide/model/persistence/device_visibility.dart';
 import 'package:glide/provider/animation_provider.dart';
 import 'package:glide/provider/app_arguments_provider.dart';
 import 'package:glide/provider/device_info_provider.dart';
+import 'package:glide/provider/network/nearby/nearby_service.dart';
 import 'package:glide/provider/network/nearby_devices_provider.dart';
 import 'package:glide/provider/network/server/server_provider.dart';
 import 'package:glide/provider/network/webrtc/signaling_provider.dart';
@@ -211,6 +212,12 @@ Future<void> postInit(BuildContext context, Ref ref, bool appStart) async {
     ref.redux(nearbyDevicesProvider).dispatchAsync(StartDiscoveryListener()); // ignore: unawaited_futures
   } catch (e) {
     _logger.warning('Starting discovery listener failed', e);
+  }
+
+  // Bluetooth discovery of devices that are not on this network. Asks for the
+  // Bluetooth / Nearby devices permissions the first time.
+  if (NearbyService.isSupportedPlatform) {
+    unawaited(ref.notifier(nearbyProvider).start());
   }
 
   // ignore: dead_code

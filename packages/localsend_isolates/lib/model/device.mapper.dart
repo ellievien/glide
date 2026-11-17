@@ -75,6 +75,7 @@ class DeviceChannelMapper extends ClassMapperBase<DeviceChannel> {
       MapperContainer.globals.use(_instance = DeviceChannelMapper._());
       HttpChannelMapper.ensureInitialized();
       SignalingChannelMapper.ensureInitialized();
+      BluetoothChannelMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -367,6 +368,162 @@ class _SignalingChannelCopyWithImpl<$R, $Out>
   SignalingChannelCopyWith<$R2, SignalingChannel, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   ) => _SignalingChannelCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class BluetoothChannelMapper extends ClassMapperBase<BluetoothChannel> {
+  BluetoothChannelMapper._();
+
+  static BluetoothChannelMapper? _instance;
+  static BluetoothChannelMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = BluetoothChannelMapper._());
+      DeviceChannelMapper.ensureInitialized();
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'BluetoothChannel';
+
+  static String _$bleId(BluetoothChannel v) => v.bleId;
+  static const Field<BluetoothChannel, String> _f$bleId = Field(
+    'bleId',
+    _$bleId,
+  );
+  static bool _$canHost(BluetoothChannel v) => v.canHost;
+  static const Field<BluetoothChannel, bool> _f$canHost = Field(
+    'canHost',
+    _$canHost,
+  );
+  static bool _$canJoin(BluetoothChannel v) => v.canJoin;
+  static const Field<BluetoothChannel, bool> _f$canJoin = Field(
+    'canJoin',
+    _$canJoin,
+  );
+  static bool _$peerToPeer(BluetoothChannel v) => v.peerToPeer;
+  static const Field<BluetoothChannel, bool> _f$peerToPeer = Field(
+    'peerToPeer',
+    _$peerToPeer,
+    opt: true,
+    def: false,
+  );
+
+  @override
+  final MappableFields<BluetoothChannel> fields = const {
+    #bleId: _f$bleId,
+    #canHost: _f$canHost,
+    #canJoin: _f$canJoin,
+    #peerToPeer: _f$peerToPeer,
+  };
+
+  static BluetoothChannel _instantiate(DecodingData data) {
+    return BluetoothChannel(
+      bleId: data.dec(_f$bleId),
+      canHost: data.dec(_f$canHost),
+      canJoin: data.dec(_f$canJoin),
+      peerToPeer: data.dec(_f$peerToPeer),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static BluetoothChannel fromJson(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<BluetoothChannel>(map);
+  }
+
+  static BluetoothChannel deserialize(String json) {
+    return ensureInitialized().decodeJson<BluetoothChannel>(json);
+  }
+}
+
+mixin BluetoothChannelMappable {
+  String serialize() {
+    return BluetoothChannelMapper.ensureInitialized()
+        .encodeJson<BluetoothChannel>(this as BluetoothChannel);
+  }
+
+  Map<String, dynamic> toJson() {
+    return BluetoothChannelMapper.ensureInitialized()
+        .encodeMap<BluetoothChannel>(this as BluetoothChannel);
+  }
+
+  BluetoothChannelCopyWith<BluetoothChannel, BluetoothChannel, BluetoothChannel>
+  get copyWith =>
+      _BluetoothChannelCopyWithImpl<BluetoothChannel, BluetoothChannel>(
+        this as BluetoothChannel,
+        $identity,
+        $identity,
+      );
+  @override
+  String toString() {
+    return BluetoothChannelMapper.ensureInitialized().stringifyValue(
+      this as BluetoothChannel,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return BluetoothChannelMapper.ensureInitialized().equalsValue(
+      this as BluetoothChannel,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return BluetoothChannelMapper.ensureInitialized().hashValue(
+      this as BluetoothChannel,
+    );
+  }
+}
+
+extension BluetoothChannelValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, BluetoothChannel, $Out> {
+  BluetoothChannelCopyWith<$R, BluetoothChannel, $Out>
+  get $asBluetoothChannel =>
+      $base.as((v, t, t2) => _BluetoothChannelCopyWithImpl<$R, $Out>(v, t, t2));
+}
+
+abstract class BluetoothChannelCopyWith<$R, $In extends BluetoothChannel, $Out>
+    implements DeviceChannelCopyWith<$R, $In, $Out> {
+  @override
+  $R call({String? bleId, bool? canHost, bool? canJoin, bool? peerToPeer});
+  BluetoothChannelCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _BluetoothChannelCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, BluetoothChannel, $Out>
+    implements BluetoothChannelCopyWith<$R, BluetoothChannel, $Out> {
+  _BluetoothChannelCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<BluetoothChannel> $mapper =
+      BluetoothChannelMapper.ensureInitialized();
+  @override
+  $R call({String? bleId, bool? canHost, bool? canJoin, bool? peerToPeer}) =>
+      $apply(
+        FieldCopyWithData({
+          if (bleId != null) #bleId: bleId,
+          if (canHost != null) #canHost: canHost,
+          if (canJoin != null) #canJoin: canJoin,
+          if (peerToPeer != null) #peerToPeer: peerToPeer,
+        }),
+      );
+  @override
+  BluetoothChannel $make(CopyWithData data) => BluetoothChannel(
+    bleId: data.get(#bleId, or: $value.bleId),
+    canHost: data.get(#canHost, or: $value.canHost),
+    canJoin: data.get(#canJoin, or: $value.canJoin),
+    peerToPeer: data.get(#peerToPeer, or: $value.peerToPeer),
+  );
+
+  @override
+  BluetoothChannelCopyWith<$R2, BluetoothChannel, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  ) => _BluetoothChannelCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
 class DeviceMapper extends ClassMapperBase<Device> {

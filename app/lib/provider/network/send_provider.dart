@@ -9,6 +9,7 @@ import 'package:glide/pages/glide/glide_sending_page.dart';
 import 'package:glide/provider/device_info_provider.dart';
 import 'package:glide/provider/file_transfer_provider.dart';
 import 'package:glide/provider/http_provider.dart';
+import 'package:glide/provider/network/nearby/nearby_service.dart';
 import 'package:glide/provider/selection/selected_sending_files_provider.dart';
 import 'package:glide/provider/settings_provider.dart';
 import 'package:glide/widget/dialogs/pin_dialog.dart';
@@ -174,6 +175,13 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
       );
     }
 
+    // A device found only over Bluetooth needs a temporary network first.
+    final resolvedTarget = await _resolveNearbyTarget(sessionId: sessionId, target: target);
+    if (resolvedTarget == null) {
+      // Failed (the session shows why) or canceled meanwhile.
+      return;
+    }
+
     // Calculate the checksums which are part of the request.
     // The files are read and hashed in Rust, one file after another.
     final hashes = <String, String>{};
@@ -272,9 +280,9 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
         invalidPin = false;
         try {
           response = await client.prepareUpload(
-            protocol: target.getProtocolType(),
-            ip: target.ip!,
-            port: target.port,
+            protocol: resolvedTarget.getProtocolType(),
+            ip: resolvedTarget.ip!,
+            port: resolvedTarget.port,
             payload: requestDto,
             // The peer is already verified during the TLS handshake by the
             // fingerprint the client is pinned to.
@@ -793,6 +801,64 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
       }
     }
     return validated;
+  }
+
+  /// Returns the device to dial for [target], setting up a temporary
+  /// Bluetooth-negotiated Wi-Fi Direct network when it is not reachable on a
+  /// shared network. Returns `null` when that failed (the session then shows
+  /// the error) or the session was canceled meanwhile.
+  Future<Device?> _resolveNearbyTarget({required String sessionId, required Device target}) async {
+    if (NearbyService.bluetoothChannelOf(target) == null) {
+      return target;
+    }
+    if (target.ip != null && await _isReachable(target)) {
+      return target;
+    }
+    try {
+      final link = await ref.notifier(nearbyProvider).openLink(sessionId: sessionId, target: target);
+      final channel = HttpChannel(host: link.ip, port: link.port, https: link.https);
+      final resolved = target.copyWith(
+        ip: link.ip,
+        port: link.port,
+        https: link.https,
+        channels: [channel, ...target.channels.where((c) => c is! HttpChannel)],
+      );
+      if (state[sessionId] == null) {
+        return null;
+      }
+      // Uploads and cancellation read the address from the session.
+      state = state.updateSession(
+        sessionId: sessionId,
+        state: (s) => s?.copyWith(target: resolved),
+      );
+      return resolved;
+    } on NearbyException catch (e) {
+      state = state.updateSession(
+        sessionId: sessionId,
+        state: (s) => s?.copyWith(
+          status: SessionStatus.finishedWithErrors,
+          errorMessage: e.message,
+        ),
+      );
+      return null;
+    }
+  }
+
+  /// Whether the HTTP server of [target] answers at its known address, i.e.
+  /// whether both devices are still on the same network.
+  static Future<bool> _isReachable(Device target) async {
+    final ip = target.ip!;
+    if (ip.contains('%')) {
+      // Scoped link-local IPv6: only ever learned on a shared link.
+      return true;
+    }
+    try {
+      final socket = await Socket.connect(ip, target.port, timeout: const Duration(milliseconds: 1500));
+      socket.destroy();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Closes the send-session and sends a cancel event to the receiver.
