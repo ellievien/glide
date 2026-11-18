@@ -66,9 +66,11 @@ jobs:
       - name: Add DLL files
         working-directory: app
         run: |
-          Copy-Item ../support/build/windows/x64/msvcp140.dll build/windows/x64/runner/Release/
-          Copy-Item ../support/build/windows/x64/vcruntime140.dll build/windows/x64/runner/Release/
-          Copy-Item ../support/build/windows/x64/vcruntime140_1.dll build/windows/x64/runner/Release/
+          # The runner's own (current) VC++ runtime: the copies in support/build are 14.36 and crash
+          # binaries built with the runner's newer toolset (access violation in msvcp140).
+          Copy-Item $env:WINDIR/System32/msvcp140.dll build/windows/x64/runner/Release/
+          Copy-Item $env:WINDIR/System32/vcruntime140.dll build/windows/x64/runner/Release/
+          Copy-Item $env:WINDIR/System32/vcruntime140_1.dll build/windows/x64/runner/Release/
 
       # The MSIX helper only makes sense for the installer; portable users should not register an MSIX package
       - name: Remove MSIX helper from portable bundle

@@ -6,6 +6,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:glide/config/glide_tokens.dart';
 import 'package:glide/gen/strings.g.dart';
+import 'package:glide/provider/network/nearby/nearby_service.dart';
+import 'package:glide/provider/network/server/server_provider.dart';
 import 'package:glide/provider/settings_provider.dart';
 import 'package:refena_flutter/refena_flutter.dart';
 
@@ -27,10 +29,22 @@ class _GlideRenameDialogState extends State<GlideRenameDialog> {
 
   void _save() {
     final value = _controller.text.trim();
-    if (value.isNotEmpty) {
-      unawaited(context.notifier(settingsProvider).setAlias(value));
-    }
+    final ref = context.ref;
     Navigator.of(context).pop();
+    if (value.isNotEmpty && value != ref.read(settingsProvider).alias) {
+      unawaited(_apply(ref, value));
+    }
+  }
+
+  /// The server (and the Bluetooth advertisement) keep the alias they started with, so a new name needs a restart of both.
+  /// An open receive session is left alone: the new name then applies at the next start.
+  static Future<void> _apply(Ref ref, String alias) async {
+    await ref.notifier(settingsProvider).setAlias(alias);
+    final server = ref.read(serverProvider);
+    if (server != null && server.session == null && server.webDownloadState == null) {
+      await ref.notifier(serverProvider).restartServerFromSettings();
+    }
+    await ref.notifier(nearbyProvider).refreshAdvertising();
   }
 
   @override

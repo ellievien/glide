@@ -5,6 +5,7 @@
 //
 // Everything here is pure Dart so it can be unit tested without a radio.
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
@@ -76,6 +77,12 @@ class NearbyPeerInfo {
   final bool https;
   final NearbyWifiCapabilities wifi;
 
+  /// The device's IPv4 addresses on its regular networks (Ethernet, Wi-Fi).
+  /// A sender on another network segment of the same router (for example an
+  /// iPhone on Wi-Fi and a PC on Ethernet) reaches the HTTP server there, so
+  /// no temporary Wi-Fi network is needed. Missing in older versions.
+  final List<String> lanAddresses;
+
   const NearbyPeerInfo({
     required this.version,
     required this.alias,
@@ -85,6 +92,7 @@ class NearbyPeerInfo {
     required this.port,
     required this.https,
     required this.wifi,
+    this.lanAddresses = const [],
   });
 
   Map<String, Object?> toJson() => {
@@ -98,6 +106,7 @@ class NearbyPeerInfo {
     'h': wifi.canHost,
     'j': wifi.canJoin,
     'w': wifi.peerToPeer,
+    if (lanAddresses.isNotEmpty) 'l': lanAddresses,
   };
 
   Uint8List toBytes() => _encodeJson(toJson());
@@ -119,6 +128,10 @@ class NearbyPeerInfo {
       port: _requirePort(json, 'p'),
       https: json['s'] == true,
       wifi: NearbyWifiCapabilities(canHost: json['h'] == true, canJoin: json['j'] == true, peerToPeer: json['w'] == true),
+      lanAddresses: switch (json['l']) {
+        final List<Object?> list => list.whereType<String>().where(_isIpv4).toList(),
+        _ => const [],
+      },
     );
   }
 }
@@ -432,6 +445,8 @@ bool isSameIpv4Subnet24(String ip, String other) {
   }
   return a[0] == b[0] && a[1] == b[1] && a[2] == b[2];
 }
+
+bool _isIpv4(String ip) => InternetAddress.tryParse(ip)?.type == InternetAddressType.IPv4;
 
 Uint8List _encodeJson(Map<String, Object?> json) => Uint8List.fromList(utf8.encode(jsonEncode(json)));
 

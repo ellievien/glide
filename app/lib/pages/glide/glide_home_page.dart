@@ -12,10 +12,12 @@ import 'package:glide/gen/strings.g.dart';
 import 'package:glide/model/cross_file.dart';
 import 'package:glide/model/persistence/device_visibility.dart';
 import 'package:glide/pages/glide/glide_device_list_page.dart';
+import 'package:glide/pages/glide/glide_paywall_page.dart';
 import 'package:glide/pages/glide/glide_rename_dialog.dart';
 import 'package:glide/pages/glide/glide_settings_page.dart';
 import 'package:glide/provider/animation_provider.dart';
 import 'package:glide/provider/device_visibility_provider.dart';
+import 'package:glide/provider/license_provider.dart';
 import 'package:glide/provider/local_ip_provider.dart';
 import 'package:glide/provider/network/nearby_devices_provider.dart';
 import 'package:glide/provider/network/scan_facade.dart';
@@ -298,6 +300,7 @@ class _GlideHomePageState extends State<GlideHomePage> with Refena {
                         padding: const EdgeInsets.fromLTRB(24, 0, 24, 36),
                         child: Column(
                           children: [
+                            const _TrialBanner(),
                             Wrap(
                               alignment: WrapAlignment.center,
                               crossAxisAlignment: WrapCrossAlignment.center,
@@ -636,6 +639,29 @@ class _OverflowNode extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Shown when the trial has ended or ends within a day.
+class _TrialBanner extends StatelessWidget {
+  const _TrialBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final license = context.watch(licenseProvider);
+    final ended = license.trialUsed && !license.trialActive;
+    final endingSoon = license.trialActive && license.trialRemaining <= const Duration(days: 1);
+    if (license.isUnlocked || !(ended || endingSoon)) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: GlideStatusPill(
+        label: '${ended ? t.glide.license.bannerEnded : t.glide.license.bannerLastDay} · ${t.glide.license.bannerCta}',
+        dotColor: ended ? GT.danger : GT.blue,
+        onTap: () async => GlidePaywallPage.open(),
       ),
     );
   }

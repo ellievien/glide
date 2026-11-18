@@ -716,6 +716,42 @@ class MockPersistenceService extends _i1.Mock implements _i4.PersistenceService 
           as _i5.Future<void>);
 
   @override
+  _i5.Future<void> setLicenseTrialStart(int? millis) =>
+      (super.noSuchMethod(
+            Invocation.method(#setLicenseTrialStart, [millis]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> setLicenseMaxSeen(int? millis) =>
+      (super.noSuchMethod(
+            Invocation.method(#setLicenseMaxSeen, [millis]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> setLicenseUnlock(String? source) =>
+      (super.noSuchMethod(
+            Invocation.method(#setLicenseUnlock, [source]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> setLicenseKey(String? key) =>
+      (super.noSuchMethod(
+            Invocation.method(#setLicenseKey, [key]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
   _i5.Future<void> clear() =>
       (super.noSuchMethod(
             Invocation.method(#clear, []),

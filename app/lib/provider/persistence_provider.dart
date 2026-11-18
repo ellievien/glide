@@ -14,6 +14,7 @@ import 'package:glide/model/persistence/send_history_entry.dart';
 import 'package:glide/model/send_mode.dart';
 import 'package:glide/provider/window_dimensions_provider.dart';
 import 'package:glide/util/alias_generator.dart';
+import 'package:glide/util/device_name.dart';
 import 'package:glide/util/native/autostart_helper.dart';
 import 'package:glide/util/native/context_menu_helper.dart';
 import 'package:glide/util/native/platform_check.dart';
@@ -76,6 +77,7 @@ const _saveWindowPlacement = 'ls_save_window_placement';
 // Settings
 const _showToken = 'ls_show_token';
 const _aliasKey = 'ls_alias';
+const _aliasFromDeviceNameKey = 'glide_alias_from_device_name';
 const _themeKey = 'ls_theme'; // now called brightness
 const _colorKey = 'ls_color';
 const _customColorKey = 'ls_custom_color'; // RRGGBB hex, used by ColorMode.custom
@@ -103,6 +105,10 @@ const _createChecksums = 'ls_create_checksums';
 const _nearbyBluetooth = 'glide_nearby_bluetooth';
 const _verifyChecksums = 'ls_verify_checksums';
 const _advancedSettingsKey = 'ls_advanced_settings';
+const _licenseTrialStart = 'glide_license_trial_start'; // milliseconds since epoch
+const _licenseMaxSeen = 'glide_license_max_seen'; // latest clock reading (ms since epoch), guards against clock rollback
+const _licenseUnlock = 'glide_license_unlock'; // 'iap' or 'licenseKey'
+const _licenseKey = 'glide_license_key';
 
 final persistenceProvider = Provider<PersistenceService>((ref) {
   throw Exception('persistenceProvider not initialized');
@@ -174,9 +180,18 @@ class PersistenceService {
       await prefs.setString(_showToken, const Uuid().v4());
     }
 
-    if (prefs.getString(_aliasKey) == null) {
-      await prefs.setString(_aliasKey, generateRandomAlias());
+    // Other devices see this device under its own name. Random names from
+    // older versions are replaced once; a name the user typed is kept.
+    final storedAlias = prefs.getString(_aliasKey);
+    if (storedAlias == null || (prefs.getBool(_aliasFromDeviceNameKey) != true && isGeneratedAlias(storedAlias))) {
+      final deviceName = await getDeviceName();
+      if (deviceName != null) {
+        await prefs.setString(_aliasKey, deviceName);
+      } else if (storedAlias == null) {
+        await prefs.setString(_aliasKey, generateRandomAlias());
+      }
     }
+    await prefs.setBool(_aliasFromDeviceNameKey, true);
 
     if (prefs.getString(_securityContext) == null) {
       await prefs.setString(_securityContext, jsonEncode(await generateSecurityContext()));
@@ -614,6 +629,30 @@ class PersistenceService {
 
   Future<void> setDeviceModel(String deviceModel) async {
     await _prefs.setString(_deviceModel, deviceModel);
+  }
+
+  int? getLicenseTrialStart() => _prefs.getInt(_licenseTrialStart);
+
+  Future<void> setLicenseTrialStart(int millis) async {
+    await _prefs.setInt(_licenseTrialStart, millis);
+  }
+
+  int? getLicenseMaxSeen() => _prefs.getInt(_licenseMaxSeen);
+
+  Future<void> setLicenseMaxSeen(int millis) async {
+    await _prefs.setInt(_licenseMaxSeen, millis);
+  }
+
+  String? getLicenseUnlock() => _prefs.getString(_licenseUnlock);
+
+  Future<void> setLicenseUnlock(String source) async {
+    await _prefs.setString(_licenseUnlock, source);
+  }
+
+  String? getLicenseKey() => _prefs.getString(_licenseKey);
+
+  Future<void> setLicenseKey(String key) async {
+    await _prefs.setString(_licenseKey, key);
   }
 
   Future<void> clear() async {
