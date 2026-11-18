@@ -105,6 +105,10 @@ const _createChecksums = 'ls_create_checksums';
 const _nearbyBluetooth = 'glide_nearby_bluetooth';
 const _verifyChecksums = 'ls_verify_checksums';
 const _advancedSettingsKey = 'ls_advanced_settings';
+const _licenseTrialStart = 'glide_license_trial_start'; // milliseconds since epoch
+const _licenseMaxSeen = 'glide_license_max_seen'; // latest clock reading (ms since epoch), guards against clock rollback
+const _licenseUnlock = 'glide_license_unlock'; // 'iap' or 'licenseKey'
+const _licenseKey = 'glide_license_key';
 
 final persistenceProvider = Provider<PersistenceService>((ref) {
   throw Exception('persistenceProvider not initialized');
@@ -625,6 +629,30 @@ class PersistenceService {
 
   Future<void> setDeviceModel(String deviceModel) async {
     await _prefs.setString(_deviceModel, deviceModel);
+  }
+
+  int? getLicenseTrialStart() => _prefs.getInt(_licenseTrialStart);
+
+  Future<void> setLicenseTrialStart(int millis) async {
+    await _prefs.setInt(_licenseTrialStart, millis);
+  }
+
+  int? getLicenseMaxSeen() => _prefs.getInt(_licenseMaxSeen);
+
+  Future<void> setLicenseMaxSeen(int millis) async {
+    await _prefs.setInt(_licenseMaxSeen, millis);
+  }
+
+  String? getLicenseUnlock() => _prefs.getString(_licenseUnlock);
+
+  Future<void> setLicenseUnlock(String source) async {
+    await _prefs.setString(_licenseUnlock, source);
+  }
+
+  String? getLicenseKey() => _prefs.getString(_licenseKey);
+
+  Future<void> setLicenseKey(String key) async {
+    await _prefs.setString(_licenseKey, key);
   }
 
   Future<void> clear() async {

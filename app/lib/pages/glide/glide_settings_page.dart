@@ -5,9 +5,11 @@ import 'package:glide/config/glide_tokens.dart';
 import 'package:glide/gen/strings.g.dart';
 import 'package:glide/model/persistence/device_visibility.dart';
 import 'package:glide/pages/glide/glide_history_page.dart';
+import 'package:glide/pages/glide/glide_paywall_page.dart';
 import 'package:glide/pages/glide/glide_rename_dialog.dart';
 import 'package:glide/provider/device_info_provider.dart';
 import 'package:glide/provider/device_visibility_provider.dart';
+import 'package:glide/provider/license_provider.dart';
 import 'package:glide/provider/network/nearby/nearby_service.dart';
 import 'package:glide/provider/settings_provider.dart';
 import 'package:glide/provider/version_provider.dart';
@@ -52,6 +54,7 @@ class GlideSettingsPage extends StatelessWidget {
                       _ThisDeviceSection(),
                       _VisibilitySection(),
                       _TransfersSection(),
+                      _FullVersionSection(),
                       _AboutSection(),
                       _Footer(),
                       SizedBox(height: 24),
@@ -353,6 +356,43 @@ class GlideTextButtonLike extends StatelessWidget {
           const SizedBox(width: 4),
           const GlideIcon(GlideIconAsset.chevronRight, size: 12, color: GT.textFaint),
         ],
+      ),
+    );
+  }
+}
+
+class _FullVersionSection extends StatelessWidget {
+  const _FullVersionSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final license = context.watch(licenseProvider);
+
+    return _Section(
+      label: t.glide.license.settingsLabel,
+      child: GlideCard(
+        padding: EdgeInsets.zero,
+        child: InkWell(
+          onTap: () async => GlidePaywallPage.open(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Expanded(child: Text(t.glide.license.title, style: GT.body)),
+                Flexible(
+                  child: Text(
+                    licenseStatusText(license),
+                    style: GT.captionFaint,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const GlideIcon(GlideIconAsset.chevronRight, size: 14, color: GT.textFaint),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

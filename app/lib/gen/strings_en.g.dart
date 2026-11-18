@@ -229,6 +229,7 @@ class Translations$glide$en {
   late final Translations$glide$settings$en settings = Translations$glide$settings$en.internal(_root);
   late final Translations$glide$deviceList$en deviceList = Translations$glide$deviceList$en.internal(_root);
   late final Translations$glide$renameDialog$en renameDialog = Translations$glide$renameDialog$en.internal(_root);
+  late final Translations$glide$license$en license = Translations$glide$license$en.internal(_root);
 }
 
 // Path: receiveTab
@@ -1319,6 +1320,114 @@ class Translations$glide$renameDialog$en {
 
   /// en: 'Rename this device'
   String get title => 'Rename this device';
+}
+
+// Path: glide.license
+class Translations$glide$license$en {
+  Translations$glide$license$en.internal(this._root);
+
+  final Translations _root; // ignore: unused_field
+
+  // Translations
+
+  /// en: 'Glide Full Version'
+  String get title => 'Glide Full Version';
+
+  /// en: 'Full Version'
+  String get settingsLabel => 'Full Version';
+
+  /// en: 'Unlocked'
+  String get statusUnlocked => 'Unlocked';
+
+  /// en: '{n} days left in trial'
+  String statusTrialDays({required Object n}) => '${n} days left in trial';
+
+  /// en: '{n} hours left in trial'
+  String statusTrialHours({required Object n}) => '${n} hours left in trial';
+
+  /// en: 'Less than an hour left in trial'
+  String get statusTrialMinutes => 'Less than an hour left in trial';
+
+  /// en: 'Free trial available'
+  String get statusTrialNotStarted => 'Free trial available';
+
+  /// en: 'Trial ended'
+  String get statusTrialEnded => 'Trial ended';
+
+  /// en: 'Thanks for buying Glide'
+  String get headlineUnlocked => 'Thanks for buying Glide';
+
+  /// en: 'Free trial'
+  String get headlineTrial => 'Free trial';
+
+  /// en: 'Your free trial has ended'
+  String get headlineEnded => 'Your free trial has ended';
+
+  /// en: 'Try Glide free for 3 days'
+  String get headlineNotStarted => 'Try Glide free for 3 days';
+
+  /// en: 'Unlimited sending to any device'
+  String get includedSending => 'Unlimited sending to any device';
+
+  /// en: 'Receiving always stays free'
+  String get includedReceiving => 'Receiving always stays free';
+
+  /// en: 'One purchase, no subscription'
+  String get includedOnce => 'One purchase, no subscription';
+
+  /// en: 'Start 3-day free trial'
+  String get startTrial => 'Start 3-day free trial';
+
+  /// en: 'Buy — {price}'
+  String buyWithPrice({required Object price}) => 'Buy — ${price}';
+
+  /// en: 'Buy for $2.99'
+  String get buyFixed => 'Buy for \$2.99';
+
+  /// en: 'Restore purchases'
+  String get restore => 'Restore purchases';
+
+  /// en: 'Enter license key'
+  String get enterKey => 'Enter license key';
+
+  /// en: 'After paying, the website shows your license key. Paste it here.'
+  String get keyHint => 'After paying, the website shows your license key. Paste it here.';
+
+  /// en: 'License key'
+  String get keyField => 'License key';
+
+  /// en: 'Unlock'
+  String get keyUnlock => 'Unlock';
+
+  /// en: 'This license key is not valid.'
+  String get keyInvalid => 'This license key is not valid.';
+
+  /// en: 'The App Store is not available right now. Try again later.'
+  String get storeUnavailable => 'The App Store is not available right now. Try again later.';
+
+  /// en: 'This purchase is not available right now. Try again later.'
+  String get productsUnavailable => 'This purchase is not available right now. Try again later.';
+
+  /// en: 'The purchase could not be completed.'
+  String get purchaseFailed => 'The purchase could not be completed.';
+
+  /// en: 'No earlier purchases were found for this Apple ID.'
+  String get nothingToRestore => 'No earlier purchases were found for this Apple ID.';
+
+  /// en: 'Your purchases were restored.'
+  String get restored => 'Your purchases were restored.';
+
+  /// en: 'Your free trial ends soon'
+  String get bannerLastDay => 'Your free trial ends soon';
+
+  /// en: 'Trial ended — sending is locked'
+  String get bannerEnded => 'Trial ended — sending is locked';
+
+  /// en: 'Unlock'
+  String get bannerCta => 'Unlock';
+
+  /// en: 'Could not open the payment page.'
+  String get browserFailed => 'Could not open the payment page.';
 }
 
 // Path: receiveTab.infoBox

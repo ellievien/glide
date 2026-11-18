@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:glide/model/cross_file.dart';
 import 'package:glide/model/state/send/send_session_state.dart';
 import 'package:glide/model/state/send/sending_file.dart';
+import 'package:glide/pages/glide/glide_paywall_page.dart';
 import 'package:glide/pages/glide/glide_sending_page.dart';
 import 'package:glide/provider/device_info_provider.dart';
 import 'package:glide/provider/file_transfer_provider.dart';
 import 'package:glide/provider/http_provider.dart';
+import 'package:glide/provider/license_provider.dart';
 import 'package:glide/provider/network/nearby/nearby_service.dart';
 import 'package:glide/provider/selection/selected_sending_files_provider.dart';
 import 'package:glide/provider/settings_provider.dart';
@@ -102,6 +104,12 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
     required List<CrossFile> files,
     required bool background,
   }) async {
+    // The one place every send goes through: after the trial only sending is locked (receiving stays free).
+    if (!ref.notifier(licenseProvider).canSendNow()) {
+      unawaited(GlidePaywallPage.open());
+      return;
+    }
+
     // Pinned to the device the user picked, so the request is not sent at all
     // if someone else answers on that address.
     final client = ref.read(httpProvider).pinnedTo(target.fingerprint);
