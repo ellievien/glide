@@ -14,6 +14,7 @@ import 'package:glide/model/persistence/send_history_entry.dart';
 import 'package:glide/model/send_mode.dart';
 import 'package:glide/provider/window_dimensions_provider.dart';
 import 'package:glide/util/alias_generator.dart';
+import 'package:glide/util/device_name.dart';
 import 'package:glide/util/native/autostart_helper.dart';
 import 'package:glide/util/native/context_menu_helper.dart';
 import 'package:glide/util/native/platform_check.dart';
@@ -76,6 +77,7 @@ const _saveWindowPlacement = 'ls_save_window_placement';
 // Settings
 const _showToken = 'ls_show_token';
 const _aliasKey = 'ls_alias';
+const _aliasFromDeviceNameKey = 'glide_alias_from_device_name';
 const _themeKey = 'ls_theme'; // now called brightness
 const _colorKey = 'ls_color';
 const _customColorKey = 'ls_custom_color'; // RRGGBB hex, used by ColorMode.custom
@@ -174,9 +176,18 @@ class PersistenceService {
       await prefs.setString(_showToken, const Uuid().v4());
     }
 
-    if (prefs.getString(_aliasKey) == null) {
-      await prefs.setString(_aliasKey, generateRandomAlias());
+    // Other devices see this device under its own name. Random names from
+    // older versions are replaced once; a name the user typed is kept.
+    final storedAlias = prefs.getString(_aliasKey);
+    if (storedAlias == null || (prefs.getBool(_aliasFromDeviceNameKey) != true && isGeneratedAlias(storedAlias))) {
+      final deviceName = await getDeviceName();
+      if (deviceName != null) {
+        await prefs.setString(_aliasKey, deviceName);
+      } else if (storedAlias == null) {
+        await prefs.setString(_aliasKey, generateRandomAlias());
+      }
     }
+    await prefs.setBool(_aliasFromDeviceNameKey, true);
 
     if (prefs.getString(_securityContext) == null) {
       await prefs.setString(_securityContext, jsonEncode(await generateSecurityContext()));

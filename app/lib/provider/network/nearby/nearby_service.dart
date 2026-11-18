@@ -176,6 +176,9 @@ class NearbyService extends Notifier<NearbyState> {
   final _senderLinks = <String, NearbyLink>{};
 
   bool _starting = false;
+
+  /// Whether the app is paused (mobile: in the background).
+  bool _inBackground = false;
   bool _advertising = false;
   bool _availabilityListenerSet = false;
   Timer? _cycleTimer;
@@ -211,8 +214,14 @@ class NearbyService extends Notifier<NearbyState> {
     try {
       _sendSubscription ??= ref.stream(sendProvider).listen((event) => _onSendSessionsChanged(event.next));
       _lifecycleListener ??= AppLifecycleListener(
-        onPause: () => unawaited(_pauseInBackground()),
-        onResume: () => unawaited(start()),
+        onPause: () {
+          _inBackground = true;
+          unawaited(_stopIfIdleInBackground());
+        },
+        onResume: () {
+          _inBackground = false;
+          unawaited(_resumeInForeground());
+        },
       );
 
       await _wifi.init();
@@ -239,6 +248,8 @@ class NearbyService extends Notifier<NearbyState> {
       _cycleTimer?.cancel();
       _cycleTimer = Timer.periodic(_scanCycle, (_) => unawaited(_onCycle()));
       state = state.copyWith(running: true, clearProblem: true);
+      // The app may have gone to the background while this was starting.
+      unawaited(_stopIfIdleInBackground());
     } catch (e, st) {
       _logger.warning('Could not start Bluetooth discovery', e, st);
       state = state.copyWith(problem: NearbyProblem.bluetoothUnavailable);
@@ -289,11 +300,45 @@ class NearbyService extends Notifier<NearbyState> {
     await _startAdvertising();
   }
 
-  Future<void> _pauseInBackground() async {
-    // Mobile apps cannot keep a BLE peripheral useful in the background, and a
-    // receive server that is suspended would not answer anyway.
-    if (Platform.isAndroid || Platform.isIOS) {
-      await stop();
+  /// Whether a transfer still needs BLE: a link being set up, a sender link
+  /// that has to be ended over BLE, a temporary network as receiver, or a
+  /// send session that may still need [openLink] or [lanAddressesOf].
+  bool get _busy => _exchangeCount > 0 || _senderLinks.isNotEmpty || _receiverNetwork != null || ref.read(sendProvider).isNotEmpty;
+
+  /// Mobile apps cannot keep a BLE peripheral useful in the background, and a
+  /// receive server that is suspended would not answer anyway, so discovery
+  /// stops there. Not while a transfer is going on, though: switching apps (or
+  /// the system's Wi-Fi join prompt) must not drop the peer it depends on.
+  /// Called again whenever a transfer ends.
+  Future<void> _stopIfIdleInBackground() async {
+    if (!_inBackground || !(Platform.isAndroid || Platform.isIOS) || !state.running || _starting || _busy) {
+      return;
+    }
+    _logger.info('In the background, stopping Bluetooth discovery');
+    await stop();
+  }
+
+  /// Back in the foreground: start again, or, when discovery kept running
+  /// (a transfer was going on, or a desktop), re-advertise and restart the
+  /// scan, which the OS may have stopped silently, so the info reflects the
+  /// current addresses.
+  Future<void> _resumeInForeground() async {
+    if (!state.running) {
+      await start();
+      return;
+    }
+    if (!_busy) {
+      await refreshAdvertising();
+    }
+    try {
+      await UniversalBle.stopScan();
+    } catch (e) {
+      _logger.fine('stopScan failed', e);
+    }
+    try {
+      await _startScan();
+    } catch (e, st) {
+      _logger.warning('Could not restart the Bluetooth scan', e, st);
     }
   }
 
@@ -590,6 +635,7 @@ class NearbyService extends Notifier<NearbyState> {
     _receiverNetwork = null;
     _watchdogTimer?.cancel();
     _watchdogTimer = null;
+    unawaited(Future<void>.delayed(Duration.zero, _stopIfIdleInBackground));
     _logger.info('Leaving the temporary network ${network.ssid} ($reason)');
     try {
       switch (network.mode) {
@@ -882,8 +928,11 @@ class NearbyService extends Notifier<NearbyState> {
       };
       if (ended) {
         final link = _senderLinks.remove(sessionId)!;
-        unawaited(_closeLink(link));
+        unawaited(_closeLink(link).whenComplete(_stopIfIdleInBackground));
       }
+    }
+    if (sessions.isEmpty) {
+      unawaited(_stopIfIdleInBackground());
     }
   }
 
