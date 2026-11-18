@@ -101,7 +101,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path "${{ runner.temp }}\inno" | Out-Null
           Copy-Item -Path "app\build\windows\x64\runner\Release\*" -Destination "${{ runner.temp }}\inno" -Recurse
           Copy-Item -Path "app\assets\packaging\logo.ico" -Destination "${{ runner.temp }}\inno"
-          Copy-Item -Path "support\build\windows\x64\*" -Destination "${{ runner.temp }}\inno" -Recurse
+          support\scripts\copy_windows_crt.ps1 -Arch x64 -Destination "${{ runner.temp }}\inno"
           New-Item -ItemType Directory -Force -Path "${{ runner.temp }}\inno-result" | Out-Null
 
       # Inno signs the setup exe AND the embedded uninstaller at compile time via the MySignTool

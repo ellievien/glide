@@ -15,7 +15,7 @@ Copy-Item -Path "assets\packaging\logo.ico" -Destination "D:\inno"
 
 cd ..
 
-Copy-Item -Path "support\build\windows\x64\*" -Destination "D:\inno" -Recurse
+support\scripts\copy_windows_crt.ps1 -Arch x64 -Destination "D:\inno"
 Remove-Item "D:\inno-result" -Force  -Recurse -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path "D:\inno-result"
 iscc .\support\scripts\compile_windows_exe-inno.iss
