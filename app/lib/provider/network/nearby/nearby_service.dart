@@ -27,6 +27,7 @@ import 'package:glide/model/state/send/send_session_state.dart';
 import 'package:glide/provider/device_info_provider.dart';
 import 'package:glide/provider/device_visibility_provider.dart';
 import 'package:glide/provider/favorites_provider.dart';
+import 'package:glide/provider/local_ip_provider.dart';
 import 'package:glide/provider/network/nearby/nearby_peripheral.dart';
 import 'package:glide/provider/network/nearby/nearby_protocol.dart';
 import 'package:glide/provider/network/nearby/wifi_link.dart';
@@ -386,7 +387,26 @@ class NearbyService extends Notifier<NearbyState> {
       port: server.port,
       https: server.https,
       wifi: _wifi.capabilities,
+      lanAddresses: _ownLanAddresses(),
     );
+  }
+
+  /// This device's IPv4 addresses on regular networks, private ranges first,
+  /// so a sender on the same router can skip the temporary Wi-Fi network.
+  List<String> _ownLanAddresses() {
+    final ips = ref.read(localIpProvider).localIps.where((ip) {
+      final address = InternetAddress.tryParse(ip);
+      return address != null && address.type == InternetAddressType.IPv4 && !address.isLoopback && !address.isLinkLocal;
+    }).toList();
+    bool isPrivate(String ip) => ip.startsWith('192.168.') || ip.startsWith('10.') || RegExp(r'^172\.(1[6-9]|2\d|3[01])\.').hasMatch(ip);
+    ips.sort((a, b) => (isPrivate(a) ? 0 : 1).compareTo(isPrivate(b) ? 0 : 1));
+    return ips.take(6).toList();
+  }
+
+  /// The regular-network addresses [target] announced over BLE, to try
+  /// before setting up a temporary Wi-Fi network.
+  List<String> lanAddressesOf(Device target) {
+    return _peers.values.where((p) => p.info?.fingerprint == target.fingerprint).expand((p) => p.info!.lanAddresses).toSet().toList();
   }
 
   Uint8List? _onReadRequest(String deviceId, String characteristic) {

@@ -42,6 +42,7 @@ void main() {
         port: 53317,
         https: true,
         wifi: NearbyWifiCapabilities(canHost: false, canJoin: true),
+        lanAddresses: ['192.168.100.200', '172.31.255.254', '100.107.141.132', '10.255.255.254', '192.168.200.100', '172.16.0.1'],
       );
 
       // ATT values are limited to 512 bytes.
@@ -53,6 +54,27 @@ void main() {
       expect(() => NearbyPeerInfo.fromBytes(utf8.encode('{"v":1,"a":"x","f":"F","p":70000}')), throwsFormatException);
       expect(() => NearbyPeerInfo.fromBytes(utf8.encode('not json')), throwsFormatException);
       expect(() => NearbyPeerInfo.fromBytes([0xff, 0xfe]), throwsFormatException);
+    });
+
+    test('carries the LAN addresses, ignoring anything that is not IPv4', () {
+      const info = NearbyPeerInfo(
+        version: nearbyProtocolVersion,
+        alias: 'Fresh Melon',
+        fingerprint: 'F',
+        deviceModel: null,
+        deviceType: DeviceType.desktop,
+        port: 53317,
+        https: true,
+        wifi: NearbyWifiCapabilities.none,
+        lanAddresses: ['192.168.2.10'],
+      );
+      expect(NearbyPeerInfo.fromBytes(info.toBytes()).lanAddresses, ['192.168.2.10']);
+
+      final mixed = NearbyPeerInfo.fromBytes(utf8.encode('{"v":2,"a":"x","f":"F","p":1,"l":["10.0.0.2","fe80::1",5,"nope"]}'));
+      expect(mixed.lanAddresses, ['10.0.0.2']);
+
+      // Older versions do not send any.
+      expect(NearbyPeerInfo.fromBytes(utf8.encode('{"v":2,"a":"x","f":"F","p":1}')).lanAddresses, isEmpty);
     });
 
     test('falls back to desktop for unknown device types', () {

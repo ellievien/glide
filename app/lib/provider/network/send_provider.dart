@@ -814,6 +814,27 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
     if (target.ip != null && await _isReachable(target)) {
       return target;
     }
+    // Both devices may be on the same router without seeing each other
+    // (an iPhone on Wi-Fi cannot discover by multicast, a PC may be on
+    // Ethernet without any Wi-Fi): use that network as the bridge.
+    final lanIp = await _firstReachable(ref.notifier(nearbyProvider).lanAddressesOf(target), target.port);
+    if (lanIp != null) {
+      final resolved = target.copyWith(
+        ip: lanIp,
+        channels: [
+          HttpChannel(host: lanIp, port: target.port, https: target.https),
+          ...target.channels.where((c) => c is! HttpChannel),
+        ],
+      );
+      if (state[sessionId] == null) {
+        return null;
+      }
+      state = state.updateSession(
+        sessionId: sessionId,
+        state: (s) => s?.copyWith(target: resolved),
+      );
+      return resolved;
+    }
     try {
       final link = await ref.notifier(nearbyProvider).openLink(sessionId: sessionId, target: target);
       final channel = HttpChannel(host: link.ip, port: link.port, https: link.https);
@@ -842,6 +863,35 @@ class SendNotifier extends Notifier<Map<String, SendSessionState>> {
       );
       return null;
     }
+  }
+
+  /// The first of [ips] whose port [port] accepts a connection, tried in
+  /// parallel; `null` when none does.
+  static Future<String?> _firstReachable(List<String> ips, int port) async {
+    if (ips.isEmpty) {
+      return null;
+    }
+    final completer = Completer<String?>();
+    var pending = ips.length;
+    for (final ip in ips) {
+      unawaited(
+        Socket.connect(ip, port, timeout: const Duration(milliseconds: 2500)).then(
+          (socket) {
+            socket.destroy();
+            if (!completer.isCompleted) {
+              completer.complete(ip);
+            }
+          },
+          onError: (_) {
+            pending--;
+            if (pending == 0 && !completer.isCompleted) {
+              completer.complete(null);
+            }
+          },
+        ),
+      );
+    }
+    return completer.future;
   }
 
   /// Whether the HTTP server of [target] answers at its known address, i.e.
